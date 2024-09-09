@@ -5,14 +5,17 @@ import (
 	"github.com/pion/ice/v2"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/dto"
+	"mediaserver-go/hubs"
 	"mediaserver-go/ingress/sessions"
 )
 
 type WebRTCServer struct {
 	api *pion.API
+
+	hubManager *hubs.Manager
 }
 
-func NewWebRTC() (WebRTCServer, error) {
+func NewWebRTC(hubManager *hubs.Manager) (WebRTCServer, error) {
 	se := pion.SettingEngine{}
 	if err := se.SetEphemeralUDPPortRange(10000, 20000); err != nil {
 		return WebRTCServer{}, err
@@ -49,18 +52,19 @@ func NewWebRTC() (WebRTCServer, error) {
 	}
 	api := pion.NewAPI(pion.WithSettingEngine(se), pion.WithMediaEngine(me))
 	return WebRTCServer{
-		api: api,
+		api:        api,
+		hubManager: hubManager,
 	}, nil
 }
 
 func (w *WebRTCServer) StartSession(req dto.WebRTCRequest) (dto.WebRTCResponse, error) {
-	session, err := sessions.NewSession(req.Offer, req.Token, w.api)
+	session, err := sessions.NewWebRTCSession(req.Offer, req.Token, w.api)
 	if err != nil {
 		return dto.WebRTCResponse{}, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = cancel
-	go session.Run(ctx)
+	go session.Run(ctx, w.hubManager)
 	return dto.WebRTCResponse{
 		Answer: session.Answer(),
 	}, nil

@@ -3,29 +3,40 @@ package main
 import (
 	"context"
 	"golang.org/x/sync/errgroup"
+	egressserver "mediaserver-go/egress/servers"
+	"mediaserver-go/hubs"
 	"mediaserver-go/ingress/servers"
 
 	"mediaserver-go/endpoints"
 )
 
-/*
-// #cgo pkg-config: libavformat
-// #cgo CFLAGS: -I.
-// #cgo LDFLAGS: -L. -lmsvcrt -lhello
-#include "hello.h"
-
-// void printHello();
-*/
-import "C"
-
 func main() {
 	ctx := context.Background()
 
-	webrtcServer, err := servers.NewWebRTC()
+	hubManager := hubs.NewManager()
+
+	webrtcServer, err := servers.NewWebRTC(hubManager)
 	if err != nil {
 		panic(err)
 	}
-	e := endpoints.Initialize(&webrtcServer)
+
+	efs, err := egressserver.NewFileServer(hubManager)
+	if err != nil {
+		panic(err)
+	}
+
+	fileServer, err := servers.NewFileServer(hubManager)
+	if err != nil {
+		panic(err)
+	}
+
+	rtpServer, err := servers.NewRTPServer("0.0.0.0", 5000)
+	if err != nil {
+		panic(err)
+	}
+
+	go rtpServer.Run(ctx)
+	e := endpoints.Initialize(&webrtcServer, &fileServer, &efs)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

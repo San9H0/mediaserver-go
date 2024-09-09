@@ -13,12 +13,20 @@ type WebRTCServer interface {
 	StartSession(request dto.WebRTCRequest) (dto.WebRTCResponse, error)
 }
 
+type IngressFileServer interface {
+	StartSession(request dto.IngressFileRequest) (dto.IngressFileResponse, error)
+}
+
+type EgressFileServer interface {
+	StartSession(request dto.EgressFileRequest) (dto.EgressFileResponse, error)
+}
+
 type Request struct {
 	Token string
 	Offer string
 }
 
-func Initialize(s WebRTCServer) *echo.Echo {
+func Initialize(webrtcServer WebRTCServer, ingressFileServer IngressFileServer, egressFileServer EgressFileServer) *echo.Echo {
 	// Create a new Echo instance
 	e := echo.New()
 
@@ -33,8 +41,11 @@ func Initialize(s WebRTCServer) *echo.Echo {
 		return nil
 	})
 
-	whipHandler := NewWhipHandler(s)
+	whipHandler := NewWhipHandler(webrtcServer)
 	e.POST("/v1/whip", whipHandler.Handle)
+
+	fileHandler := NewFileHandler(ingressFileServer, egressFileServer)
+	e.POST("/v1/files", fileHandler.Handle)
 
 	return e
 }
