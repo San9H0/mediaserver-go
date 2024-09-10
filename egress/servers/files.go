@@ -1,29 +1,37 @@
 package servers
 
 import (
+	"context"
+	"errors"
 	"mediaserver-go/dto"
+	"mediaserver-go/egress/sessions"
 	"mediaserver-go/hubs"
+	"mediaserver-go/utils/buffers"
 )
 
 type FileServer struct {
-	hubManager *hubs.Manager
+	hub *hubs.Hub
 }
 
-func NewFileServer(hubManager *hubs.Manager) (FileServer, error) {
+func NewFileServer(hub *hubs.Hub) (FileServer, error) {
 	return FileServer{
-		hubManager: hubManager,
+		hub: hub,
 	}, nil
 }
 
-func (w *FileServer) StartSession(req dto.EgressFileRequest) (dto.EgressFileResponse, error) {
-	//ioBuffer := buffers.NewMemoryBuffer()
-	//fileSession, err := sessions.NewFileSession(req.Path, nil, 0, ioBuffer)
-	//if err != nil {
-	//	return dto.EgressFileResponse{}, err
-	//}
-	//ctx, cancel := context.WithCancel(context.Background())
-	//_ = cancel
-	//
-	//go fileSession.Run(ctx, nil)
+func (f *FileServer) StartSession(streamID string, req dto.EgressFileRequest) (dto.EgressFileResponse, error) {
+	stream, ok := f.hub.GetStream(streamID)
+	if !ok {
+		return dto.EgressFileResponse{}, errors.New("stream not found")
+	}
+
+	fileSession, err := sessions.NewFileSession(req.Path, stream.Tracks(), buffers.NewMemoryBuffer())
+	if err != nil {
+		return dto.EgressFileResponse{}, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel
+
+	go fileSession.Run(ctx)
 	return dto.EgressFileResponse{}, nil
 }

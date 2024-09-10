@@ -18,7 +18,7 @@ type IngressFileServer interface {
 }
 
 type EgressFileServer interface {
-	StartSession(request dto.EgressFileRequest) (dto.EgressFileResponse, error)
+	StartSession(streamID string, request dto.EgressFileRequest) (dto.EgressFileResponse, error)
 }
 
 type Request struct {
@@ -41,7 +41,7 @@ func Initialize(webrtcServer WebRTCServer, ingressFileServer IngressFileServer, 
 		return nil
 	})
 
-	whipHandler := NewWhipHandler(webrtcServer)
+	whipHandler := NewWhipHandler(webrtcServer, egressFileServer)
 	e.POST("/v1/whip", whipHandler.Handle)
 
 	fileHandler := NewFileHandler(ingressFileServer, egressFileServer)

@@ -1,14 +1,19 @@
 package sessions
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	rtpcodecs "github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
+	"golang.org/x/image/vp8"
+	_ "golang.org/x/image/vp8"
 	"io"
-	"mediaserver-go/egress/files"
 	"mediaserver-go/hubs"
+	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/parser/codecparser"
 	"mediaserver-go/utils"
-	"mediaserver-go/utils/buffers"
 	"mediaserver-go/utils/generators"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -29,10 +34,10 @@ type WebRTCSession struct {
 	onTrack           chan OnTrack
 	onConnectionState chan pion.PeerConnectionState
 
-	hubManager *hubs.Manager
+	stream *hubs.Stream
 }
 
-func NewWebRTCSession(offer, token string, api *pion.API) (WebRTCSession, error) {
+func NewWebRTCSession(offer, token string, api *pion.API, stream *hubs.Stream) (WebRTCSession, error) {
 	fmt.Println("sdp offer:", offer)
 	onTrack := make(chan OnTrack, 10)
 	onConnectionState := make(chan pion.PeerConnectionState, 10)
@@ -92,12 +97,13 @@ func NewWebRTCSession(offer, token string, api *pion.API) (WebRTCSession, error)
 		pc:                pc,
 		onTrack:           onTrack,
 		onConnectionState: onConnectionState,
+		stream:            stream,
 	}, nil
 }
 
-func (s *WebRTCSession) Answer() string {
-	fmt.Println("sdp answer:", s.pc.LocalDescription().SDP)
-	return s.pc.LocalDescription().SDP
+func (w *WebRTCSession) Answer() string {
+	fmt.Println("sdp answer:", w.pc.LocalDescription().SDP)
+	return w.pc.LocalDescription().SDP
 }
 
 type OnTrack struct {
@@ -105,31 +111,29 @@ type OnTrack struct {
 	receiver *pion.RTPReceiver
 }
 
-func (s *WebRTCSession) Run(ctx context.Context, hubManager *hubs.Manager) error {
+func (w *WebRTCSession) Run(ctx context.Context) error {
 	fmt.Println("[TESTDEBUG] Session Started")
 	defer func() {
 		fmt.Println("[TESTDEBUG] Session Closing")
-		s.pc.Close()
+		w.pc.Close()
 		fmt.Println("[TESTDEBUG] Session Closed")
+		w.stream.Close()
 	}()
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case onTrack := <-s.onTrack:
-			hub, err := hubManager.NewHub(s.id, types.MediaTypeFromPion(onTrack.remote.Kind()))
-			if err != nil {
-				fmt.Println("err:", err)
-				continue
-			}
-			var codec Codec
-			codec = files.NewOpus(48000, buffers.NewMemoryBuffer())
+		case onTrack := <-w.onTrack:
+			mediaType := types.MediaTypeFromPion(onTrack.remote.Kind())
+			codecType := types.CodecTypeFromMimeType(onTrack.remote.Codec().MimeType)
+			target := hubs.NewTrack(mediaType, codecType)
 			if onTrack.remote.Kind() == pion.RTPCodecTypeVideo {
-				codec = files.NewH264(90000, buffers.NewMemoryBuffer())
+				w.stream.AddTrack(target)
 			}
-			go s.readRTP(onTrack.remote, onTrack.receiver, codec, hub)
-			go s.readRTCP(onTrack.remote, onTrack.receiver)
-		case connectionState := <-s.onConnectionState:
+
+			go w.readRTP(onTrack.remote, onTrack.receiver, target)
+			go w.readRTCP(onTrack.remote, onTrack.receiver)
+		case connectionState := <-w.onConnectionState:
 			fmt.Println("conn:", connectionState.String())
 			switch connectionState {
 			case pion.PeerConnectionStateDisconnected, pion.PeerConnectionStateFailed:
@@ -140,31 +144,87 @@ func (s *WebRTCSession) Run(ctx context.Context, hubManager *hubs.Manager) error
 	}
 }
 
-func (s *WebRTCSession) readRTP(remote *pion.TrackRemote, receiver *pion.RTPReceiver, codec Codec, hub hubs.Hub) error {
+func isVP8KeyFrame(vp8Packet *rtpcodecs.VP8Packet) bool {
+	if len(vp8Packet.Payload) == 0 {
+		return false
+	}
+	return vp8Packet.Payload[0]&0x01 == 0 && vp8Packet.S == 1
+}
+
+func (w *WebRTCSession) readRTP(remote *pion.TrackRemote, receiver *pion.RTPReceiver, target *hubs.Track) error {
 	startTS := uint32(0)
+	prevTS := uint32(0)
+	duration := 0
+	var h264parser codecparser.H264
 	for {
 		rtpPacket, _, err := remote.ReadRTP()
 		if err != nil {
-			codec.Finish()
 			return err
 		}
-		codec.Setup(context.Background())
 		if startTS == 0 {
 			startTS = rtpPacket.Timestamp
 		}
 		pts := rtpPacket.Timestamp - startTS
 
-		unit := units.Unit{
-			Payload:   rtpPacket.Payload,
-			Timestamp: int64(pts),
+		if rtpPacket.Timestamp != prevTS {
+			if prevTS == 0 {
+				duration = 0
+			} else {
+				duration = int(rtpPacket.Timestamp - prevTS)
+			}
 		}
-		codec.WritePacket(unit)
 
-		hub.PushUnit(unit)
+		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeH264 {
+			aus := h264parser.GetAU(rtpPacket.Payload)
+			if h264parser.SPS() == nil || h264parser.PPS() == nil {
+				continue
+			}
+
+			h264Codec := codecs.NewH264()
+			h264Codec.SetMetaData(codecs.H264Metadata{
+				CodecType: types.CodecTypeH264,
+				MediaType: types.MediaTypeVideo,
+				Width:     h264parser.Width(),
+				Height:    h264parser.Height(),
+				FPS:       h264parser.FPS(),
+				PixelFmt:  h264parser.PixelFmt(),
+				SPS:       h264parser.SPS(),
+				PPS:       h264parser.PPS(),
+			})
+			target.SetVideoCodec(h264Codec)
+			for _, au := range aus {
+				naluType := h264.NALUType(au[0] & 0x1F)
+				flags := 0
+				if naluType == h264.NALUTypeIDR {
+					flags = 1
+				}
+				target.Write(units.Unit{
+					Payload:  au,
+					PTS:      int64(pts),
+					DTS:      int64(pts),
+					Duration: int64(duration),
+					TimeBase: int(remote.Codec().ClockRate),
+					Flags:    flags,
+				})
+			}
+		} else if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeVP8 {
+			p := rtpcodecs.VP8Packet{}
+			if _, err := p.Unmarshal(rtpPacket.Payload); err == nil {
+				if isVP8KeyFrame(&p) {
+					fmt.Println("key frame")
+					vp8Decoder := vp8.NewDecoder()
+					vp8Decoder.Init(bytes.NewReader(p.Payload), len(p.Payload))
+					if vp8FrameHeader, err := vp8Decoder.DecodeFrameHeader(); err == nil {
+						fmt.Println("vp8 frame header width:", vp8FrameHeader.Width, "height:", vp8FrameHeader.Height, "key frame:", vp8FrameHeader.KeyFrame)
+					}
+				}
+			}
+		}
+		prevTS = rtpPacket.Timestamp
 	}
 }
 
-func (s *WebRTCSession) readRTCP(remote *pion.TrackRemote, receiver *pion.RTPReceiver) error {
+func (w *WebRTCSession) readRTCP(remote *pion.TrackRemote, receiver *pion.RTPReceiver) error {
 	for {
 		rtcpPackets, _, err := receiver.ReadRTCP()
 		if err != nil {

@@ -224,7 +224,7 @@ const (
 	AV_CODEC_ID_MVC2             = int(C.AV_CODEC_ID_MVC2)
 	AV_CODEC_ID_MXPEG            = int(C.AV_CODEC_ID_MXPEG)
 	AV_CODEC_ID_NELLYMOSER       = int(C.AV_CODEC_ID_NELLYMOSER)
-	AV_CODEC_ID_NONE             = int(C.AV_CODEC_ID_NONE)
+	AV_CODEC_ID_NONE             = CodecID(C.AV_CODEC_ID_NONE)
 	AV_CODEC_ID_NUV              = int(C.AV_CODEC_ID_NUV)
 	AV_CODEC_ID_ON2AVC           = int(C.AV_CODEC_ID_ON2AVC)
 	AV_CODEC_ID_OPUS             = CodecID(C.AV_CODEC_ID_OPUS)

@@ -86,16 +86,16 @@ func (o *Opus) Setup(ctx context.Context) error {
 }
 
 func (o *Opus) WritePacket(unit units.Unit) error {
-	duration := unit.Timestamp - o.prevTimestamp
+	duration := unit.PTS - o.prevTimestamp
 	if o.prevTimestamp == 0 {
 		duration = int64(o.sampleRate / 960)
 	}
-	o.prevTimestamp = unit.Timestamp
+	o.prevTimestamp = unit.PTS
 	pkt := avcodec.AvPacketAlloc()
 	pkt.AvPacketFromByteSlice(unit.Payload)
 
-	pkt.SetPTS(avutil.AvRescaleQRound(unit.Timestamp, o.inputStream.TimeBase(), o.outputStream.TimeBase(), avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
-	pkt.SetDTS(avutil.AvRescaleQRound(unit.Timestamp, o.inputStream.TimeBase(), o.outputStream.TimeBase(), avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
+	pkt.SetPTS(avutil.AvRescaleQRound(unit.PTS, o.inputStream.TimeBase(), o.outputStream.TimeBase(), avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
+	pkt.SetDTS(avutil.AvRescaleQRound(unit.PTS, o.inputStream.TimeBase(), o.outputStream.TimeBase(), avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
 	pkt.SetDuration(avutil.AvRescaleQ(duration, o.inputStream.TimeBase(), o.outputStream.TimeBase()))
 	pkt.SetStreamIndex(0) // todo
 	_ = o.outputFormatCtx.AvInterleavedWriteFrame(pkt)

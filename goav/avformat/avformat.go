@@ -162,6 +162,10 @@ func (s *Stream) TimeBase() avutil.Rational {
 	return avutil.NewRational(int(s.time_base.num), int(s.time_base.den))
 }
 
+func (s *Stream) RFrameRate() avutil.Rational {
+	return avutil.NewRational(int(s.r_frame_rate.num), int(s.r_frame_rate.den))
+}
+
 func NewAvFormatContextNull() *FormatContext {
 	avFormatCtx := (*FormatContext)(unsafe.Pointer((*C.AVFormatContext)(nil)))
 	return avFormatCtx

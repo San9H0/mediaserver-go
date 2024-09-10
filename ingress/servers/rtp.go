@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"github.com/pion/rtp"
-	"mediaserver-go/parser/rtpparser"
+	"mediaserver-go/parser/codecparser"
 	"net"
 )
 
 type RTPServer struct {
 	conn       *net.UDPConn
-	h264parser rtpparser.H264
+	h264parser codecparser.H264
 }
 
 func NewRTPServer(ip string, port int) (RTPServer, error) {
@@ -44,12 +44,7 @@ func (r *RTPServer) Run(ctx context.Context) error {
 			continue
 		}
 
-		au, err := r.h264parser.GetAU(&pkt)
-		if err != nil {
-			fmt.Println("error getting au:", err)
-			continue
-		}
-
+		au := r.h264parser.GetAU(pkt.Payload)
 		if len(au) == 0 {
 			continue
 		}

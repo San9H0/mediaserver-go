@@ -1,72 +1,39 @@
 package hubs
 
 import (
-	"errors"
-	"mediaserver-go/utils"
-	"mediaserver-go/utils/types"
-	"mediaserver-go/utils/units"
 	"sync"
-	"sync/atomic"
 )
 
-var (
-	invalidCodecType = errors.New("invalid codec type")
-)
-
-type Hub interface {
-	PushUnit(unit units.Unit)
-	Register(chan units.Unit)
-}
-
-func NewHub(mediaType types.MediaType) (Hub, error) {
-	switch mediaType {
-	case types.MediaTypeVideo:
-		return &hub{}, nil
-	case types.MediaTypeAudio:
-		return &hub{}, nil
-	default:
-		return nil, invalidCodecType
-	}
-}
-
-type hub struct {
+type Hub struct {
 	mu sync.RWMutex
 
-	ready atomic.Bool
-	param atomic.Pointer[Parameter]
-
-	channels []chan units.Unit
+	streams map[ /*streamID*/ string]*Stream
 }
 
-type Parameter struct {
-	MediaType  types.MediaType
-	CodecType  types.CodecType
-	Width      int
-	Height     int
-	Bitrate    int
-	SampleRate int
-}
-
-func (h *hub) SetCodecParameter(param Parameter) {
-	h.param.Store(&param)
-	h.ready.Store(true)
-}
-
-func (h *hub) PushUnit(u units.Unit) {
-	if !h.ready.Load() {
-		return
-	}
-	h.mu.RLock()
-	chs := h.channels
-	h.mu.RUnlock()
-	for _, ch := range chs {
-		utils.SendOrDrop(ch, u)
+func NewHub() *Hub {
+	return &Hub{
+		streams: make(map[string]*Stream),
 	}
 }
 
-func (h *hub) Register(ch chan units.Unit) {
+func (h *Hub) AddStream(id string, stream *Stream) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.channels = append(h.channels, ch)
+	h.streams[id] = stream
+}
+
+func (h *Hub) RemoveStream(id string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	delete(h.streams, id)
+}
+
+func (h *Hub) GetStream(id string) (*Stream, bool) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	stream, ok := h.streams[id]
+	return stream, ok
 }

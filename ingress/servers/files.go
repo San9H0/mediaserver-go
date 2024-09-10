@@ -5,32 +5,37 @@ import (
 	"mediaserver-go/dto"
 	"mediaserver-go/hubs"
 	"mediaserver-go/ingress/sessions"
+	"time"
 )
 
 type FileServer struct {
-	hubManager *hubs.Manager
+	hub *hubs.Hub
 }
 
-func NewFileServer(hubManager *hubs.Manager) (FileServer, error) {
+func NewFileServer(hubManager *hubs.Hub) (FileServer, error) {
 	return FileServer{
-		hubManager: hubManager,
+		hub: hubManager,
 	}, nil
 }
 
 func (f *FileServer) StartSession(req dto.IngressFileRequest) (dto.IngressFileResponse, error) {
-	fileSession, err := sessions.NewFileSession(req.Path, req.MediaTypes, req.Live)
+	streamID := "FileServerID"
+	stream := hubs.NewStream()
+	f.hub.AddStream(streamID, stream)
+
+	fileSession, err := sessions.NewFileSession(req.Path, req.MediaTypes, req.Live, stream)
 	if err != nil {
 		return dto.IngressFileResponse{}, err
 	}
 
-	//hub, err := f.hubManager.NewHub("test", types.MediaTypeFromPion(onTrack.remote.Kind()))
-	//if err != nil {
-	//	fmt.Println("err:", err)
-	//	continue
-	//}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = cancel
 	go fileSession.Run(ctx)
+
+	go func() {
+		time.Sleep(10 * time.Second)
+		cancel()
+	}()
+
 	return dto.IngressFileResponse{}, nil
 }

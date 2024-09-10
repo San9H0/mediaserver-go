@@ -12,10 +12,10 @@ import (
 type WebRTCServer struct {
 	api *pion.API
 
-	hubManager *hubs.Manager
+	hub *hubs.Hub
 }
 
-func NewWebRTC(hubManager *hubs.Manager) (WebRTCServer, error) {
+func NewWebRTC(hub *hubs.Hub) (WebRTCServer, error) {
 	se := pion.SettingEngine{}
 	if err := se.SetEphemeralUDPPortRange(10000, 20000); err != nil {
 		return WebRTCServer{}, err
@@ -52,19 +52,23 @@ func NewWebRTC(hubManager *hubs.Manager) (WebRTCServer, error) {
 	}
 	api := pion.NewAPI(pion.WithSettingEngine(se), pion.WithMediaEngine(me))
 	return WebRTCServer{
-		api:        api,
-		hubManager: hubManager,
+		api: api,
+		hub: hub,
 	}, nil
 }
 
 func (w *WebRTCServer) StartSession(req dto.WebRTCRequest) (dto.WebRTCResponse, error) {
-	session, err := sessions.NewWebRTCSession(req.Offer, req.Token, w.api)
+	streamID := "WebRTCServer"
+	stream := hubs.NewStream()
+	w.hub.AddStream(streamID, stream)
+
+	session, err := sessions.NewWebRTCSession(req.Offer, req.Token, w.api, stream)
 	if err != nil {
 		return dto.WebRTCResponse{}, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = cancel
-	go session.Run(ctx, w.hubManager)
+	go session.Run(ctx)
 	return dto.WebRTCResponse{
 		Answer: session.Answer(),
 	}, nil

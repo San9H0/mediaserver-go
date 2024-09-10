@@ -15,7 +15,7 @@ const (
 	AV_PKT_FLAG_DISCARD = int(C.AV_PKT_FLAG_DISCARD)
 )
 
-//// Initialize optional fields of a packet with default values.
+// Initialize optional fields of a packet with default values.
 //func (p *Packet) AvInitPacket() {
 //	C.av_init_packet((*C.struct_AVPacket)(p))
 //	p.size = 0
@@ -175,4 +175,17 @@ func (p *Packet) POS() int {
 
 func (p *Packet) Data() []byte {
 	return C.GoBytes(unsafe.Pointer(p.data), C.int(p.size))
+}
+
+func (p *Packet) SetData(data []byte) {
+	p.data = (*C.uint8_t)(C.CBytes(data))
+	p.size = C.int(len(data))
+}
+
+func (p *Packet) SetFlag(flags int) { // video 시 i frame인지 유무
+	p.flags = C.int(flags)
+}
+
+func (p *Packet) Flag() int {
+	return int(p.flags)
 }

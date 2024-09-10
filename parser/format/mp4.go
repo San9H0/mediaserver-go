@@ -1,5 +1,9 @@
 package format
 
+import (
+	"encoding/binary"
+)
+
 /*
 bits
 8   version ( always 0x01 )
@@ -54,4 +58,30 @@ func SPSPPSFromAVCCExtraData(data []byte) (sps []byte, pps []byte) {
 	ppsLen := int(data[9+spsLen])<<8 | int(data[10+spsLen])
 	pps = data[11+spsLen : 11+spsLen+ppsLen]
 	return sps, pps
+}
+
+// GetAUFromAVCC extracts Access Units from AVCC format.
+func GetAUFromAVCC(payload []byte) [][]byte {
+	if len(payload) < 1 {
+		return nil
+	}
+
+	const (
+		avcSizeLength = 4
+	)
+
+	var aus [][]byte
+	offset := uint32(0)
+	for {
+		if offset >= uint32(len(payload))-avcSizeLength {
+			break
+		}
+		auLength := binary.BigEndian.Uint32(payload[offset:])
+		offset += avcSizeLength
+		au := payload[offset : auLength+offset]
+		offset += auLength
+		aus = append(aus, au)
+	}
+
+	return aus
 }

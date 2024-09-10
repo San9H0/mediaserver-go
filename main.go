@@ -13,19 +13,19 @@ import (
 func main() {
 	ctx := context.Background()
 
-	hubManager := hubs.NewManager()
+	hub := hubs.NewHub()
 
-	webrtcServer, err := servers.NewWebRTC(hubManager)
+	webrtcServer, err := servers.NewWebRTC(hub)
 	if err != nil {
 		panic(err)
 	}
 
-	efs, err := egressserver.NewFileServer(hubManager)
+	efs, err := egressserver.NewFileServer(hub)
 	if err != nil {
 		panic(err)
 	}
 
-	fileServer, err := servers.NewFileServer(hubManager)
+	fileServer, err := servers.NewFileServer(hub)
 	if err != nil {
 		panic(err)
 	}
