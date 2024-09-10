@@ -203,9 +203,6 @@ func (s *FileSession) readTrack(ctx context.Context, track *hubs.Track) error {
 				return nil
 			}
 
-			_ = unit
-			// Write to output stream
-			//fmt.Println("egress kind:", track.MediaType(), ", codecType:", track.CodecType(), ", unit:", unit.PTS)
 			if track.MediaType() == types.MediaTypeVideo {
 				outputStream := s.outputFormatCtx.Streams()[s.videoIndex]
 
@@ -222,18 +219,11 @@ func (s *FileSession) readTrack(ctx context.Context, track *hubs.Track) error {
 				pkt.SetDTS(avutil.AvRescaleQRound(unit.DTS, timebase, outputStream.TimeBase(), avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
 				pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, timebase, outputStream.TimeBase()))
 				pkt.SetStreamIndex(s.videoIndex)
-				//avc := make([]byte, len(unit.Payload))
-				//copy(avc, unit.Payload)
 				avc := make([]byte, 4+len(unit.Payload))
 				binary.BigEndian.PutUint32(avc, uint32(len(unit.Payload)))
 				copy(avc[4:], unit.Payload)
-				finalLen := 10
-				if finalLen > len(avc)-1 {
-					finalLen = len(avc)
-				}
 				pkt.SetData(avc)
 				pkt.SetFlag(unit.Flags)
-				//fmt.Printf("avc:%X,%X,%X,%X, data:%d\n", data[0], data[1], data[2], data[3], len(data[4:]))
 
 				s.mu.Lock()
 				_ = s.outputFormatCtx.AvInterleavedWriteFrame(pkt)

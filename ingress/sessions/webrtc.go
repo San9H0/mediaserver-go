@@ -10,6 +10,7 @@ import (
 	"golang.org/x/image/vp8"
 	_ "golang.org/x/image/vp8"
 	"io"
+	"mediaserver-go/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/parser/codecparser"
@@ -127,8 +128,20 @@ func (w *WebRTCSession) Run(ctx context.Context) error {
 			mediaType := types.MediaTypeFromPion(onTrack.remote.Kind())
 			codecType := types.CodecTypeFromMimeType(onTrack.remote.Codec().MimeType)
 			target := hubs.NewTrack(mediaType, codecType)
+			fmt.Println("[TESTDEBUG] onTrack:", mediaType, ", kind:", onTrack.remote.Kind(), ", codec:", codecType)
 			if onTrack.remote.Kind() == pion.RTPCodecTypeVideo {
 				w.stream.AddTrack(target)
+			} else {
+				w.stream.AddTrack(target)
+				opusCodec := codecs.NewOpus()
+				opusCodec.SetMetaData(codecs.OpusMetadata{
+					CodecType:  types.CodecTypeOpus,
+					MediaType:  types.MediaTypeAudio,
+					SampleRate: int(onTrack.remote.Codec().ClockRate),
+					Channels:   int(onTrack.remote.Codec().Channels),
+					SampleFmt:  int(avutil.AV_SAMPLE_FMT_S16),
+				})
+				target.SetAudioCodec(opusCodec)
 			}
 
 			go w.readRTP(onTrack.remote, onTrack.receiver, target)
@@ -207,7 +220,9 @@ func (w *WebRTCSession) readRTP(remote *pion.TrackRemote, receiver *pion.RTPRece
 					Flags:    flags,
 				})
 			}
-		} else if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeVP8 {
+		}
+		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeVP8 {
+			panic("not implemented")
 			p := rtpcodecs.VP8Packet{}
 			if _, err := p.Unmarshal(rtpPacket.Payload); err == nil {
 				if isVP8KeyFrame(&p) {
@@ -219,6 +234,16 @@ func (w *WebRTCSession) readRTP(remote *pion.TrackRemote, receiver *pion.RTPRece
 					}
 				}
 			}
+		}
+		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeOpus {
+			target.Write(units.Unit{
+				Payload:  rtpPacket.Payload,
+				PTS:      int64(pts),
+				DTS:      int64(pts),
+				Duration: int64(duration),
+				TimeBase: int(remote.Codec().ClockRate),
+				Flags:    0,
+			})
 		}
 		prevTS = rtpPacket.Timestamp
 	}
