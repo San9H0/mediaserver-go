@@ -25,7 +25,7 @@ repeated once per PPS:
 	16       PPS size
 	variable PPS NALU data
 */
-func ExtraDataForAVCC(sps, pps []byte) []byte {
+func ExtraDataForAVC(sps, pps []byte) []byte {
 	if len(sps) < 1 || len(pps) < 1 {
 		return nil
 	}
@@ -60,8 +60,8 @@ func SPSPPSFromAVCCExtraData(data []byte) (sps []byte, pps []byte) {
 	return sps, pps
 }
 
-// GetAUFromAVCC extracts Access Units from AVCC format.
-func GetAUFromAVCC(payload []byte) [][]byte {
+// GetAUFromAVC extracts Access Units from AVCC format.
+func GetAUFromAVC(payload []byte) [][]byte {
 	if len(payload) < 1 {
 		return nil
 	}

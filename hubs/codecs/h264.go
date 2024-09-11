@@ -1,86 +1,113 @@
 package codecs
 
 import (
+	"errors"
+	"fmt"
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"mediaserver-go/goav/avutil"
 	"mediaserver-go/parser/format"
 	"mediaserver-go/utils/types"
-	"sync"
+)
+
+var (
+	errInvalidSPSLength     = errors.New("invalid SPS length")
+	errInvalidPPSLength     = errors.New("invalid PPS length")
+	errFailedToUnmarshalSPS = errors.New("failed to unmarshal SPS")
 )
 
 var _ VideoCodec = (*H264)(nil)
 
 type H264 struct {
-	mu sync.RWMutex
-
-	meta H264Metadata
+	sps, pps      []byte
+	spsSet        *h264.SPS
+	width, height int
+	fps           float64
+	pixelFmt      int
+	extraData     []byte
 }
 
-func NewH264() *H264 {
-	return &H264{}
-}
+func NewH264(sps, pps []byte) (*H264, error) {
+	if len(sps) == 0 {
+		return nil, errInvalidSPSLength
+	}
+	if len(pps) == 0 {
+		return nil, errInvalidPPSLength
+	}
 
-type H264Metadata struct {
-	CodecType types.CodecType //codecCtx.SetCodecID(inputCodecpar.CodecID())
-	MediaType types.MediaType //codecCtx.SetCodecType(inputCodecpar.CodecType())
-	Width     int             //codecCtx.SetWidth(inputCodecpar.Width())
-	Height    int             //codecCtx.SetHeight(inputCodecpar.Height())
-	FPS       float64         //codecCtx.SetTimeBase(avutil.NewRational(1, 30))
-	PixelFmt  int             //codecCtx.SetPixelFormat(avutil.AV_PIX_FMT_YUV420P)
-	SPS       []byte          //extradata := format.ExtraDataForAVCC(sps, pps), //codecCtx.SetExtraData(extradata)
-	PPS       []byte
-}
+	spsSet := &h264.SPS{}
+	if err := spsSet.Unmarshal(sps); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal. %w", err)
+	}
 
-func (h *H264) SetMetaData(meta H264Metadata) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.meta = meta
-}
-
-func (h *H264) CodecType() types.CodecType {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	return h.meta.CodecType
+	return &H264{
+		sps:       append(make([]byte, 0, len(sps)), sps...),
+		pps:       append(make([]byte, 0, len(pps)), pps...),
+		spsSet:    spsSet,
+		width:     spsSet.Width(),
+		height:    spsSet.Height(),
+		fps:       spsSet.FPS(),
+		pixelFmt:  makePixelFmt(spsSet),
+		extraData: format.ExtraDataForAVC(sps, pps),
+	}, nil
 }
 
 func (h *H264) MediaType() types.MediaType {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	return types.MediaTypeVideo
+}
 
-	return h.meta.MediaType
+func (h *H264) CodecType() types.CodecType {
+	return types.CodecTypeH264
 }
 
 func (h *H264) Width() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	return h.meta.Width
+	return h.width
 }
 
 func (h *H264) Height() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	return h.meta.Height
+	return h.height
 }
 
 func (h *H264) FPS() float64 {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	return h.meta.FPS
+	return h.fps
 }
 
 func (h *H264) PixelFormat() int {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	return h.meta.PixelFmt
+	return h.pixelFmt
 }
 
+// ExtraData use readonly
 func (h *H264) ExtraData() []byte {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	return h.extraData
+}
 
-	return format.ExtraDataForAVCC(h.meta.SPS, h.meta.PPS)
+// SPS use readonly
+func (h *H264) SPS() []byte {
+	return h.sps
+}
+
+// PPS use readonly
+func (h *H264) PPS() []byte {
+	return h.pps
+}
+
+func (h *H264) Profile() string {
+	profileIdc := h.extraData[0]
+	profileCompatibility := h.extraData[2]
+	levelIdc := h.extraData[3]
+	return fmt.Sprintf("%02x%02x%02x", profileIdc, profileCompatibility, levelIdc)
+}
+
+func makePixelFmt(spsSet *h264.SPS) int {
+	switch spsSet.ChromaFormatIdc {
+	case 0:
+		return avutil.AV_PIX_FMT_GRAY8
+	case 1:
+		return avutil.AV_PIX_FMT_YUV420P
+	case 2:
+		return avutil.AV_PIX_FMT_YUV422P
+	case 3:
+		return avutil.AV_PIX_FMT_YUV444P
+	default:
+		return avutil.AV_PIX_FMT_NONE
+	}
 }

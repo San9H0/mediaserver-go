@@ -9,16 +9,28 @@ import (
 	"time"
 )
 
-type WebRTCServer interface {
-	StartSession(request dto.WebRTCRequest) (dto.WebRTCResponse, error)
+type WHIPServer interface {
+	StartSession(request dto.WHIPRequest) (dto.WHIPResponse, error)
 }
 
 type IngressFileServer interface {
 	StartSession(request dto.IngressFileRequest) (dto.IngressFileResponse, error)
 }
 
+type WHEPServer interface {
+	StartSession(streamID string, request dto.WHEPRequest) (dto.WHEPResponse, error)
+}
+
 type EgressFileServer interface {
 	StartSession(streamID string, request dto.EgressFileRequest) (dto.EgressFileResponse, error)
+}
+
+type IngressRTPServer interface {
+	StartSession(streamID string, request dto.IngressRTPRequest) (dto.IngressRTPResponse, error)
+}
+
+type EgressRTPServer interface {
+	StartSession(streamID string, request dto.EgressRTPRequest) (dto.EgressRTPResponse, error)
 }
 
 type Request struct {
@@ -26,7 +38,13 @@ type Request struct {
 	Offer string
 }
 
-func Initialize(webrtcServer WebRTCServer, ingressFileServer IngressFileServer, egressFileServer EgressFileServer) *echo.Echo {
+func Initialize(
+	whipServer WHIPServer,
+	ingressFileServer IngressFileServer,
+	whepServer WHEPServer,
+	egressFileServer EgressFileServer,
+	ingressRTPServer IngressRTPServer,
+	egressRTPServer EgressRTPServer) *echo.Echo {
 	// Create a new Echo instance
 	e := echo.New()
 
@@ -34,18 +52,25 @@ func Initialize(webrtcServer WebRTCServer, ingressFileServer IngressFileServer, 
 		fmt.Println("err:", err)
 	}
 
-	// Apply the request logger middleware
 	e.Use(RequestLogger)
+
 	e.GET("/v1/whip/candidates", func(c echo.Context) error {
 		fmt.Println("candidates")
 		return nil
 	})
 
-	whipHandler := NewWhipHandler(webrtcServer, egressFileServer)
+	whipHandler := NewWhipHandler(whipServer, egressFileServer)
 	e.POST("/v1/whip", whipHandler.Handle)
+
+	whepHandler := NewWHEPHandler(whepServer)
+	e.POST("/v1/whep", whepHandler.Handle)
 
 	fileHandler := NewFileHandler(ingressFileServer, egressFileServer)
 	e.POST("/v1/files", fileHandler.Handle)
+
+	egressRTPHandler := NewRTPHandler(ingressRTPServer, egressRTPServer)
+	e.POST("/v1/rtp/out", egressRTPHandler.HandleEgress)
+	e.POST("/v1/rtp/in", egressRTPHandler.HandleIngress)
 
 	return e
 }

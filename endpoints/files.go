@@ -35,13 +35,13 @@ func (w *FileHandler) Handle(c echo.Context) error {
 		return err
 	}
 	_ = resp
-	r, err := w.egressServer.StartSession("FileServerID", dto.EgressFileRequest{
-		Token: token,
-	})
-	_ = r
-	if err != nil {
-		return err
-	}
+	//r, err := w.egressServer.StartSession("FileServerID", dto.EgressFileRequest{
+	//	Token: token,
+	//})
+	//_ = r
+	//if err != nil {
+	//	return err
+	//}
 
 	c.Response().WriteHeader(http.StatusOK)
 	return nil

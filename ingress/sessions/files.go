@@ -11,7 +11,6 @@ import (
 	"mediaserver-go/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/parser/codecparser"
 	"mediaserver-go/parser/format"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -65,7 +64,7 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		tracks[i] = types.NewTrack(mediaType, codecType)
 	}
 	if audioIndex == -1 && videoIndex == -1 {
-		return FileSession{}, errors.New("no tracks")
+		return FileSession{}, errors.New("no target")
 	}
 
 	if videoTrack != nil {
@@ -77,18 +76,12 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 			return FileSession{}, errors.New("sps pps not found")
 		}
 
-		h264Codec := codecs.NewH264()
-		h264Codec.SetMetaData(codecs.H264Metadata{
-			CodecType: types.CodecTypeFromFFMPEG(inputCodecpar.CodecID()),
-			MediaType: types.MediaTypeFromFFMPEG(inputCodecpar.CodecType()),
-			Width:     inputCodecpar.Width(),
-			Height:    inputCodecpar.Height(),
-			FPS:       float64(inputStream.RFrameRate().Num()) / float64(inputStream.RFrameRate().Den()),
-			PixelFmt:  inputCodecpar.Format(),
-			SPS:       sps,
-			PPS:       pps,
-		})
-		videoTrack.SetVideoCodec(h264Codec)
+		h264Codecs, err := codecs.NewH264(sps, pps)
+		if err != nil {
+			return FileSession{}, err
+		}
+
+		videoTrack.SetVideoCodec(h264Codecs)
 	}
 
 	if audioTrack != nil {
@@ -133,7 +126,6 @@ func (s *FileSession) Run(ctx context.Context) error {
 
 	var startTime time.Time
 
-	h264parser := codecparser.H264{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -157,17 +149,15 @@ func (s *FileSession) Run(ctx context.Context) error {
 			delay := ptsTimeSec - (diffus)
 
 			istream := s.inputFormatCtx.Streams()[s.videoIndex]
-			for _, aus := range format.GetAUFromAVCC(pkt.Data()) {
-				for _, au := range h264parser.GetAU(aus) {
-					s.videoTrack.Write(units.Unit{
-						Payload:  au,
-						PTS:      pkt.PTS(),
-						DTS:      pkt.DTS(),
-						Duration: pkt.Duration(),
-						TimeBase: istream.TimeBase().Den(),
-						Flags:    pkt.Flag(),
-					})
-				}
+			for _, au := range format.GetAUFromAVC(pkt.Data()) {
+				s.videoTrack.Write(units.Unit{
+					Payload:  au,
+					PTS:      pkt.PTS(),
+					DTS:      pkt.DTS(),
+					Duration: pkt.Duration(),
+					TimeBase: istream.TimeBase().Den(),
+					Flags:    pkt.Flag(),
+				})
 			}
 
 			if delay > 0 {

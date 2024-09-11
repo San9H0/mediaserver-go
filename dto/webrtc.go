@@ -1,10 +1,10 @@
 package dto
 
-type WebRTCRequest struct {
+type WHIPRequest struct {
 	Token string
 	Offer string
 }
 
-type WebRTCResponse struct {
+type WHIPResponse struct {
 	Answer string
 }

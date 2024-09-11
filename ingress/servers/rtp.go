@@ -2,59 +2,33 @@ package servers
 
 import (
 	"context"
-	"fmt"
-	"github.com/pion/rtp"
-	"mediaserver-go/parser/codecparser"
-	"net"
+	"mediaserver-go/dto"
+	"mediaserver-go/hubs"
+	"mediaserver-go/ingress/sessions"
 )
 
 type RTPServer struct {
-	conn       *net.UDPConn
-	h264parser codecparser.H264
+	hub *hubs.Hub
 }
 
-func NewRTPServer(ip string, port int) (RTPServer, error) {
-	addr := net.UDPAddr{
-		IP:   net.ParseIP(ip),
-		Port: port,
-	}
-	conn, err := net.ListenUDP("udp", &addr)
-	if err != nil {
-		return RTPServer{}, err
-	}
-
+func NewRTPServer(hub *hubs.Hub) (RTPServer, error) {
 	return RTPServer{
-		conn: conn,
+		hub: hub,
 	}, nil
 }
 
-func (r *RTPServer) Run(ctx context.Context) error {
-	buffer := make([]byte, 1500)
-	for {
-		n, src, err := r.conn.ReadFromUDP(buffer)
-		if err != nil {
-			fmt.Println("error reading from udp:", err)
-			return err
-		}
-		_ = src
+func (f *RTPServer) StartSession(streamID string, req dto.IngressRTPRequest) (dto.IngressRTPResponse, error) {
+	stream := hubs.NewStream()
+	f.hub.AddStream(streamID, stream)
 
-		var pkt rtp.Packet
-		if err := pkt.Unmarshal(buffer[:n]); err != nil {
-			fmt.Println("error unmarshalling rtp packet:", err)
-			continue
-		}
-
-		au := r.h264parser.GetAU(pkt.Payload)
-		if len(au) == 0 {
-			continue
-		}
-
-		for _, accessUnit := range au {
-			nalUnit := accessUnit[0] & 0x1F
-
-			//fmt.Println("[TESDTEBUG] rtp recv ts:", pkt.Timestamp, ", sn:", pkt.SequenceNumber, ", pt:", pkt.PayloadType)
-			fmt.Printf("[TESDTEBUG] nalUnit:%d, payload:%x\n", nalUnit, accessUnit[1:20])
-		}
+	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, req.SSRC, req.PayloadType, stream)
+	if err != nil {
+		return dto.IngressRTPResponse{}, err
 	}
-	return nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = cancel
+	go fileSession.Run(ctx)
+
+	return dto.IngressRTPResponse{}, nil
 }

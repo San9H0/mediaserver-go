@@ -1,6 +1,9 @@
 package units
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/pion/rtp"
+)
 
 type Unit struct {
 	Payload  []byte
@@ -9,7 +12,8 @@ type Unit struct {
 	Duration int64
 	TimeBase int // audio: sampleRate, video: timebase
 
-	Flags int
+	Flags     int
+	RTPPacket *rtp.Packet
 }
 
 func (u Unit) String() string {

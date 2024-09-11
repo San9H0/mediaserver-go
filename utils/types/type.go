@@ -99,3 +99,17 @@ func CodecTypeFromMimeType(mimeType string) CodecType {
 	}
 	return CodecTypeUnknown
 }
+
+func MimeTypeFromCodecType(codecType CodecType) string {
+	switch codecType {
+	case CodecTypeH264:
+		return pion.MimeTypeH264
+	case CodecTypeVP8:
+		return pion.MimeTypeVP8
+	case CodecTypeAAC:
+		return "audio/aac"
+	case CodecTypeOpus:
+		return pion.MimeTypeOpus
+	}
+	return ""
+}

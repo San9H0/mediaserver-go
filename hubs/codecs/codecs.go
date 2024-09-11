@@ -23,4 +23,5 @@ type VideoCodec interface {
 	FPS() float64
 	PixelFormat() int
 	ExtraData() []byte
+	Profile() string
 }

@@ -9,7 +9,6 @@ import (
 	"mediaserver-go/goav/avcodec"
 	"mediaserver-go/goav/avformat"
 	"mediaserver-go/goav/avutil"
-	"mediaserver-go/parser/codecparser"
 	"mediaserver-go/utils/units"
 	"os"
 	"sync/atomic"
@@ -24,7 +23,6 @@ type H264 struct {
 	prevTimestamp int64
 	SPS           []byte
 	PPS           []byte
-	h264parser    codecparser.H264
 	pkt           *avcodec.Packet
 
 	inputFormatCtx *avformat.FormatContext
@@ -103,7 +101,7 @@ func (h *H264) WritePacket(unit units.Unit) error {
 	}
 	h.prevTimestamp = unit.PTS
 
-	//aus, err := h.h264parser.GetAU(rtpPacket)
+	//aus, err := h.h264parser.Parse(rtpPacket)
 	//if err != nil {
 	//	return err
 	//}

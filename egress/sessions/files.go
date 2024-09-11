@@ -86,7 +86,7 @@ func (s *FileSession) init() error {
 				}
 				if c == nil {
 					fmt.Println("[TESTDEBUG] video codec wait..")
-					time.Sleep(time.Second)
+					time.Sleep(50 * time.Millisecond)
 					continue
 				}
 				break
@@ -139,7 +139,7 @@ func (s *FileSession) init() error {
 				}
 				if c == nil {
 					fmt.Println("[TESTDEBUG] audio codec wait..")
-					time.Sleep(time.Second)
+					time.Sleep(50 * time.Millisecond)
 					continue
 				}
 				break
@@ -171,7 +171,7 @@ func (s *FileSession) init() error {
 }
 
 func (s *FileSession) Run(ctx context.Context) error {
-	fmt.Println("[TESTDEBUG] FileSession is run tracks:", len(s.tracks))
+	fmt.Println("[TESTDEBUG] FileSession is run track:", len(s.tracks))
 	g, ctx := errgroup.WithContext(ctx)
 	for _, track := range s.tracks {
 		g.Go(func() error {
