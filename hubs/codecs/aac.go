@@ -1,68 +1,62 @@
 package codecs
 
 import (
+	pion "github.com/pion/webrtc/v3"
+	"mediaserver-go/ffmpeg/goav/avcodec"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/utils/types"
-	"sync"
 )
 
 var _ AudioCodec = (*AAC)(nil)
 
 type AAC struct {
-	mu sync.RWMutex
-
-	meta AACMetadata
+	sampleRate int
+	channels   int
+	sampleFmt  int
 }
 
-func NewAAC() *AAC {
-	return &AAC{}
-}
-
-func (a *AAC) SampleRate() int {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	return a.meta.SampleRate
-}
-
-type AACMetadata struct {
-	CodecType  types.CodecType
-	MediaType  types.MediaType
+type AACParameters struct {
 	SampleRate int
 	Channels   int
 	SampleFmt  int
 }
 
-func (a *AAC) SetMetaData(meta AACMetadata) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.meta = meta
+func NewAAC(a AACParameters) *AAC {
+	return &AAC{
+		channels:   a.Channels,
+		sampleFmt:  a.SampleFmt,
+		sampleRate: a.SampleRate,
+	}
 }
 
 func (a *AAC) CodecType() types.CodecType {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	return a.meta.CodecType
+	return types.CodecTypeAAC
 }
 
 func (a *AAC) MediaType() types.MediaType {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	return a.meta.MediaType
+	return types.MediaTypeAudio
 }
 
 func (a *AAC) Channels() int {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	return a.meta.Channels
+	return a.channels
 }
 
 func (a *AAC) SampleFormat() int {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
+	return a.sampleFmt
+}
 
-	return a.meta.SampleFmt
+func (a *AAC) SampleRate() int {
+	return a.sampleRate
+}
+
+func (a *AAC) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
+	return pion.RTPCodecCapability{}, errUnsupportedWebRTC
+}
+
+func (a *AAC) SetCodecContext(codecCtx *avcodec.CodecContext) {
+	codecCtx.SetCodecID(types.CodecIDFromType(a.CodecType()))
+	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(a.MediaType()))
+	codecCtx.SetSampleRate(a.SampleRate())
+	avutil.AvChannelLayoutDefault(codecCtx.ChLayout(), a.Channels())
+	codecCtx.SetSampleFmt(avcodec.AvSampleFormat(a.SampleFormat()))
 }

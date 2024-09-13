@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WHEP Client</title>
+</head>
+<body>
+
+<script src="../../scripts/webrtc/sdp.js"></script>
+<h1>WHEP Client</h1>
+
+<video id="pubVideo" controls></video>
+<video id="subVideo"></video>
+
+<br><br>
+
+<!-- StreamKey 또는 Token을 입력받는 텍스트박스 -->
+<input type="text" id="streamKey" placeholder="Enter your StreamKey or Token" style="width: 300px;">
+
+<div class="box">
+    <button id="startWebcam">StartWebcam</button>
+    <button id="startVideo">StartVideo</button>
+    <button id="startVideoFMP4">StartVideoFMP4</button>
+
+    <button id="startPub">StartPub</button>
+    <button id="startSub">StartSub</button>
+
+    <button id="startButton">Start</button>
+    <button id="callButton">Call</button>
+    <button id="hangupButton">Hang Up</button>
+</div>
+
+<script>
+    const audioEncodings = [{maxBitrate: 96 * 1024}];
+    const simulcastVideoEncodings = [
+        {rid: "m", maxBitrate: 1024 * 1024},
+        {rid: "l", maxBitrate: 300 * 1024, scaleResolutionDownBy: 2}
+    ];
+    const singleVideoEncodings = [
+        {maxBitrate: 1024 * 1024}
+    ];
+
+    const webCapConstraints = {
+        audio: true,
+        video: {
+            width: { ideal: 400 }, // 웹캠별로 지원하는 해상도가 다를 수 있음
+            height: { ideal: 300 },
+            frameRate : {
+                ideal: 30,
+                max: 60
+            },
+        }
+    };
+</script>
+
+<script>
+    async function sendOffer(publish, streamKey, offer) {
+        if (streamKey === "" || offer === "") {
+            throw new Error('Please enter your StreamKey or offer');
+        }
+        const serverHost = window.location.hostname;
+        const serverPort = window.location.port;
+
+        if (publish) {
+            const response = await fetch(`http://${serverHost}:${serverPort}/v1/whip`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/sdp',
+                    'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+                },
+                body: offer,
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to connect to WHEP server.');
+            }
+
+            return await response.text()
+        }
+
+        const response = await fetch(`http://${serverHost}:${serverPort}/v1/whep`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/sdp',
+                'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+            },
+            body: offer,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to connect to WHEP server.');
+        }
+
+        return await response.text()
+    }
+</script>
+
+<script>
+    const configuration = {
+        sdpSemantics: 'unified-plan',
+    };
+    // JavaScript를 사용하여 값 설정 가능
+    const streamKeyInput = document.getElementById('streamKey');
+    document.getElementById('streamKey').value = "streamkey";
+    const serverHost = window.location.hostname;
+    const serverPort = window.location.port;
+
+    const offerOptions = {
+        offerToReceiveAudio: 1,
+        offerToReceiveVideo: 1
+    };
+
+    let localStream;
+    let localAudioTrack;
+    let localVideoTrack;
+    let pubPC, pubAudioTransceiver, pubVideoTransceiver;
+    let subPC, subAudioTransceiver, subVideoTransceiver;
+
+    const pubVideo = document.getElementById('pubVideo');
+    const subVideo = document.getElementById('subVideo');
+
+    const startWebcamBtn = document.getElementById('startWebcam');
+    const startVideoBtn = document.getElementById('startVideo');
+    const startVideoFMP4Btn = document.getElementById('startVideoFMP4');
+    const startPubBtn = document.getElementById('startPub');
+    const startSubBtn = document.getElementById('startSub');
+
+    async function startWebcam() {
+        startWebcamBtn.disabled = true;
+        startVideoBtn.disabled = true;
+        startVideoFMP4Btn.disabled = true;
+
+        try {
+            const mediaStream = await navigator.mediaDevices.getUserMedia(webCapConstraints);
+            console.log('Received local stream');
+            pubVideo.srcObject = mediaStream;
+
+            pubVideo.muted = true;
+            await pubVideo.play()
+
+            localStream = mediaStream;
+            localAudioTrack = mediaStream.getAudioTracks()[0]
+            localVideoTrack = mediaStream.getVideoTracks()[0]
+        } catch (e) {
+            alert(`2 getUserMedia() error: ${e.name}`);
+        }
+    }
+
+    async function startVideo() {
+        startWebcamBtn.disabled = true;
+        startVideoBtn.disabled = true;
+        startVideoFMP4Btn.disabled = true;
+
+        const source = "../nobframe.mp4"
+        // const source = "../output_opus_fmp4.mp4"
+        try {
+            console.log("new URL(source, document.baseURI).href:", new URL(source, document.baseURI).href)
+            if (pubVideo.src !== new URL(source, document.baseURI).href) {
+                pubVideo.src = source
+            }
+            await pubVideo.play()
+
+            const mediaStream = pubVideo.captureStream();
+            localStream = mediaStream
+            localAudioTrack = mediaStream.getAudioTracks()[0]
+            localVideoTrack = mediaStream.getVideoTracks()[0]
+        } catch (e) {
+            alert(`3 getUserMedia() error: ${e.name}`);
+        }
+    }
+
+    async function startVideoFMP4() {
+        startWebcamBtn.disabled = true;
+        startVideoBtn.disabled = true;
+        startVideoFMP4Btn.disabled = true;
+        const assetURL = '../test_fmp4.mp4';
+        const mimeCodec = 'video/mp4; codecs="avc1.4D401F, mp4a.40.2"';
+        // const assetURL = '../output_opus_fmp4.mp4';
+        // const mimeCodec = 'video/mp4; codecs="avc1.4D401F, opus"';
+        mediaSource = new MediaSource();
+
+        try {
+
+            if (!MediaSource.isTypeSupported(mimeCodec)) {
+                console.error('Unsupported MIME type or codec: ', mimeCodec);
+                return
+            }
+
+            console.log("mediaSource:", mediaSource)
+
+            pubVideo.src = URL.createObjectURL(mediaSource);
+            mediaSource.addEventListener('sourceopen', async (_) => {
+                const sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+                const response = await fetch(assetURL)
+                const data = await response.arrayBuffer()
+                sourceBuffer.addEventListener('updateend', async function(_) {
+                    mediaSource.endOfStream();
+                })
+                sourceBuffer.appendBuffer(data);
+            })
+
+            await pubVideo.play();
+
+            const mediaStream = pubVideo.captureStream();
+            localStream = mediaStream
+            localAudioTrack = mediaStream.getAudioTracks()[0]
+            localVideoTrack = mediaStream.getVideoTracks()[0]
+        } catch (e) {
+            alert(`4 getUserMedia() error: ${e.name}`);
+        }
+    }
+
+    async function startPub() {
+        pubPC = new RTCPeerConnection(configuration);
+        pubAudioTransceiver = pubPC.addTransceiver(localStream.getAudioTracks()[0], {
+            direction : 'sendonly',
+            sendEncodings: audioEncodings,
+            stream: [localStream],
+        })
+        pubVideoTransceiver = pubPC.addTransceiver(localStream.getVideoTracks()[0], {
+            direction : 'sendonly',
+            sendEncodings: singleVideoEncodings,
+            stream: [localStream],
+        })
+
+        // if (true) { // simulcast 를 체크하지 않았을때?
+        //     let param = pubVideoTransceiver.sender.getParameters()
+        //     param.degradationPreference = "maintain-resolution";
+        //     await pubVideoTransceiver.sender.setParameters(param)
+        // }
+
+        console.log(RTCRtpSender.getCapabilities("video").codecs)
+
+        // videoCodec = "h264"
+        // let videoProfile = ""
+        // if (videoCodec === "h264") {
+        //     videoProfile = ""
+        //     // videoProfile = "42e01f"; // "42001f", "42e01f" // "4D401F"
+        // } else if (videoCodec === "vp9") {
+        //     videoProfile = "profile-id=1";
+        // }
+        //
+        // let selectedCodecs = RTCRtpSender.getCapabilities("video").codecs.filter(codec => {
+        //     return codec.mimeType.toLowerCase() === `video/${videoCodec}`
+        // })
+        // console.log("selected selectedCodec:", selectedCodecs)
+        //
+        // if (videoProfile !== "") {
+        //     selectedCodecs = [selectedCodecs.find(codec => {
+        //         if (videoProfile === "") {
+        //             return true
+        //         }
+        //         let _a;
+        //         return (
+        //             codec.sdpFmtpLine && ((_a = codec.sdpFmtpLine) === null || _a === void 0 ? void 0 : _a.indexOf(`profile-level-id=${videoProfile}`))
+        //         )
+        //     })]
+        // }
+
+        // if (selectedCodecs.length > 0) {
+        //     pubVideoTransceiver.setCodecPreferences(selectedCodecs)
+        // }
+        //
+        // const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
+        // const opusFilteredCodec = audioCodecs.filter(codec => {
+        //     return codec.mimeType.toLowerCase() === 'audio/opus'
+        // })
+        // pubAudioTransceiver.setCodecPreferences(opusFilteredCodec)
+
+        pubPC.addEventListener('icecandidate',async event => {
+        });
+        pubPC.addEventListener('iceconnectionstatechange', e => {
+        });
+        pubPC.ontrack = e => {
+            console.log("pubPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
+        };
+        console.log('Added local stream to pc1');
+
+        const offer = await pubPC.createOffer()
+        await pubPC.setLocalDescription(offer)
+        console.log("offer:", offer.sdp)
+
+        const answerSDP = await sendOffer(true, streamKeyInput.value.trim(), offer.sdp)
+        console.log("answer:", answerSDP)
+
+        await pubPC.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: answerSDP
+        }));
+
+    }
+
+    async function startSub() {
+        subPC = new RTCPeerConnection(configuration);
+        subAudioTransceiver = subPC.addTransceiver('audio', {
+            direction : 'recvonly',
+        })
+        subVideoTransceiver = subPC.addTransceiver('video', {
+            direction : 'recvonly',
+        })
+
+        // videoCodec = "h264"
+        // let videoProfile = ""
+        // if (videoCodec === "h264") {
+        //     videoProfile = ""
+        //     // videoProfile = "42e01f"; // "42001f", "42e01f" // "4D401F"
+        // } else if (videoCodec === "vp9") {
+        //     videoProfile = "profile-id=1";
+        // }
+        //
+        // let selectedCodecs = RTCRtpSender.getCapabilities("video").codecs.filter(codec => {
+        //     return codec.mimeType.toLowerCase() === `video/${videoCodec}`
+        // })
+        // console.log("selected selectedCodec:", selectedCodecs)
+        // if (videoProfile !== "") {
+        //     selectedCodecs = [selectedCodecs.find(codec => {
+        //         if (videoProfile === "") {
+        //             return true
+        //         }
+        //         let _a;
+        //         return (
+        //             codec.sdpFmtpLine && ((_a = codec.sdpFmtpLine) === null || _a === void 0 ? void 0 : _a.indexOf(`profile-level-id=${videoProfile}`))
+        //         )
+        //     })]
+        // }
+        //
+        // subVideoTransceiver.setCodecPreferences(selectedCodecs)
+        //
+        // const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
+        // const opusFilteredCodec = audioCodecs.filter(codec => {
+        //     return codec.mimeType.toLowerCase() === 'audio/opus'
+        // })
+        // subAudioTransceiver.setCodecPreferences(opusFilteredCodec)
+
+        subPC.addEventListener('icecandidate',async event => {
+        });
+        subPC.addEventListener('iceconnectionstatechange', e => {
+        });
+        subPC.ontrack = async e => {
+            console.log("subPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
+            if (subVideo.srcObject !== e.streams[0]) {
+                subVideo.srcObject = e.streams[0];
+                await subVideo.play()
+                console.log('subPC received remote stream');
+            }
+        };
+
+        const offer = await subPC.createOffer()
+        console.log("offer.sdp:", offer.sdp)
+        await subPC.setLocalDescription(offer)
+        const answerSDP = await sendOffer(false, streamKeyInput.value.trim(), offer.sdp)
+        console.log("answer:", answerSDP)
+        await subPC.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: answerSDP
+        }));
+
+        console.log("subPC:", subPC.getTransceivers().length)
+    }
+
+    startWebcamBtn.addEventListener('click', startWebcam);
+    startVideoBtn.addEventListener('click', startVideo);
+    startVideoFMP4Btn.addEventListener('click', startVideoFMP4)
+    startPubBtn.addEventListener('click', startPub);
+    startSubBtn.addEventListener('click', startSub);
+
+
+    function parseSdpFmtpLine(sdpFmtpLine) {
+        const paramsMap = {};
+        if (sdpFmtpLine === undefined) {
+            return paramsMap;
+        }
+
+        // ;를 기준으로 나누고 각 항목을 key-value 쌍으로 변환
+        sdpFmtpLine.split(';').forEach(param => {
+            const [key, value] = param.trim().split('=');
+            paramsMap[key] = value;
+        });
+
+        return paramsMap;
+    }
+</script>
+</body>
+</html>

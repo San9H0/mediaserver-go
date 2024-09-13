@@ -1,0 +1,25 @@
+package avutil
+
+//#include <libavutil/samplefmt.h>
+import "C"
+
+type (
+	SampleFormat = C.enum_AVSampleFormat
+)
+
+const (
+	AV_SAMPLE_FMT_NONE SampleFormat = C.AV_SAMPLE_FMT_NONE
+	AV_SAMPLE_FMT_U8   SampleFormat = C.AV_SAMPLE_FMT_U8
+	AV_SAMPLE_FMT_S16  SampleFormat = C.AV_SAMPLE_FMT_S16
+	AV_SAMPLE_FMT_S32  SampleFormat = C.AV_SAMPLE_FMT_S32
+	AV_SAMPLE_FMT_FLT  SampleFormat = C.AV_SAMPLE_FMT_FLT
+	AV_SAMPLE_FMT_DBL  SampleFormat = C.AV_SAMPLE_FMT_DBL
+	AV_SAMPLE_FMT_U8P  SampleFormat = C.AV_SAMPLE_FMT_U8P
+	AV_SAMPLE_FMT_S16P SampleFormat = C.AV_SAMPLE_FMT_S16P
+	AV_SAMPLE_FMT_S32P SampleFormat = C.AV_SAMPLE_FMT_S32P
+	AV_SAMPLE_FMT_FLTP SampleFormat = C.AV_SAMPLE_FMT_FLTP
+	AV_SAMPLE_FMT_DBLP SampleFormat = C.AV_SAMPLE_FMT_DBLP
+	AV_SAMPLE_FMT_S64  SampleFormat = C.AV_SAMPLE_FMT_S64
+	AV_SAMPLE_FMT_S64P SampleFormat = C.AV_SAMPLE_FMT_S64P
+	AV_SAMPLE_FMT_NB   SampleFormat = C.AV_SAMPLE_FMT_NB
+)

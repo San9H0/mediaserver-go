@@ -3,10 +3,11 @@ package servers
 import (
 	"context"
 	"errors"
+	"fmt"
 	pion "github.com/pion/webrtc/v3"
-	"mediaserver-go/dto"
 	"mediaserver-go/egress/sessions"
 	"mediaserver-go/hubs"
+	"mediaserver-go/utils/dto"
 )
 
 type WebRTCServer struct {
@@ -27,6 +28,7 @@ func (f *WebRTCServer) StartSession(streamID string, req dto.WHEPRequest) (dto.W
 		return dto.WHEPResponse{}, errors.New("stream not found")
 	}
 
+	fmt.Println("[TESTDEBUG] startSession tracks:", stream.Tracks())
 	whepSession, err := sessions.NewWHEPSession(req.Offer, req.Token, f.se, stream.Tracks())
 	if err != nil {
 		return dto.WHEPResponse{}, err

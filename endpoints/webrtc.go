@@ -1,10 +1,11 @@
 package endpoints
 
 import (
-	"fmt"
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 	"io"
-	"mediaserver-go/dto"
+	dto2 "mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
 	"net/http"
 )
 
@@ -31,8 +32,12 @@ func (w *WhipHandler) Handle(c echo.Context) error {
 		return err
 	}
 
-	resp, err := w.server.StartSession(dto.WHIPRequest{
-		Token: token,
+	log.Logger.Debug("whip body",
+		zap.String("messageType", "request"),
+		zap.String("body", string(b)),
+	)
+	streamID := token
+	resp, err := w.server.StartSession(streamID, dto2.WHIPRequest{
 		Offer: string(b),
 	})
 	if err != nil {
@@ -45,6 +50,10 @@ func (w *WhipHandler) Handle(c echo.Context) error {
 	if _, err = c.Response().Write([]byte(resp.Answer)); err != nil {
 		return err
 	}
+	log.Logger.Debug("whip body",
+		zap.String("messageType", "response"),
+		zap.String("body", string(resp.Answer)),
+	)
 	return nil
 }
 
@@ -71,7 +80,7 @@ func (w *WHEPHandler) Handle(c echo.Context) error {
 		return err
 	}
 
-	resp, err := w.whepServer.StartSession(token, dto.WHEPRequest{
+	resp, err := w.whepServer.StartSession(token, dto2.WHEPRequest{
 		Token: token,
 		Offer: string(b),
 	})
@@ -79,8 +88,6 @@ func (w *WHEPHandler) Handle(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	fmt.Println("[TESTDEBUG] token:", token)
-	fmt.Println("[TESTDEBUG] b:", string(b))
 	c.Response().Header().Set("Content-Type", "application/sdp")
 	c.Response().Header().Set("Location", "http://127.0.0.1/v1/whip/candidates")
 	c.Response().WriteHeader(http.StatusCreated)

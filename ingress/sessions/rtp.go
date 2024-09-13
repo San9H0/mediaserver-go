@@ -25,11 +25,10 @@ type RTPSession struct {
 type Track struct {
 	target     *hubs.Track
 	rtpTrackCh chan *rtp.Packet
-	ssrc       uint32
 	pt         uint8
 }
 
-func NewRTPSession(ip string, port int, ssrc uint32, pt uint8, stream *hubs.Stream) (RTPSession, error) {
+func NewRTPSession(ip string, port int, pt uint8, stream *hubs.Stream) (RTPSession, error) {
 	addr := net.UDPAddr{
 		IP:   net.ParseIP(ip),
 		Port: port,
@@ -46,7 +45,6 @@ func NewRTPSession(ip string, port int, ssrc uint32, pt uint8, stream *hubs.Stre
 	tracks = append(tracks, &Track{
 		target:     target,
 		rtpTrackCh: make(chan *rtp.Packet, 100),
-		ssrc:       ssrc,
 		pt:         pt,
 	})
 
@@ -58,10 +56,8 @@ func NewRTPSession(ip string, port int, ssrc uint32, pt uint8, stream *hubs.Stre
 }
 
 func (r *RTPSession) Run(ctx context.Context) error {
-	ssrcMap := map[uint32]*Track{}
 	ptMap := map[uint8]*Track{}
 	for _, track := range r.tracks {
-		ssrcMap[track.ssrc] = track
 		ptMap[track.pt] = track
 		go r.readRTP(ctx, track)
 	}
@@ -118,7 +114,7 @@ func (r *RTPSession) readRTP(ctx context.Context, track *Track) error {
 				}
 			}
 
-			aus := parser.Parse(rtpPacket.Payload)
+			aus := parser.Parse(rtpPacket)
 			codec := parser.GetCodec()
 			if codec == nil {
 				continue

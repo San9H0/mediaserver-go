@@ -2,17 +2,30 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/pion/ice/v2"
 	pion "github.com/pion/webrtc/v3"
+	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
-	egressserver "mediaserver-go/egress/servers"
-	"mediaserver-go/hubs"
-	"mediaserver-go/ingress/servers"
-
+	egress "mediaserver-go/egress/servers"
 	"mediaserver-go/endpoints"
+	"mediaserver-go/hubs"
+	ingress "mediaserver-go/ingress/servers"
+	"mediaserver-go/utils/configs"
+	"mediaserver-go/utils/log"
 )
 
 func main() {
+	if err := configs.Init(); err != nil {
+		panic(err)
+	}
+
+	if err := log.Init(); err != nil {
+		panic(err)
+	}
+
+	log.Logger.Info("Starting server")
+
 	ctx := context.Background()
 
 	hub := hubs.NewHub()
@@ -26,32 +39,28 @@ func main() {
 	//se.SetNAT1To1IPs([]string{"127.0.0.1"}, webrtc.ICECandidateTypeHost)
 	se.SetLite(true)
 
-	whipServer, err := servers.NewWHIP(hub, se)
+	whipServer, err := ingress.NewWHIP(hub, se)
+	if err != nil {
+		panic(err)
+	}
+	fileServer, err := ingress.NewFileServer(hub)
+	if err != nil {
+		panic(err)
+	}
+	ingressRTPServer, err := ingress.NewRTPServer(hub)
 	if err != nil {
 		panic(err)
 	}
 
-	whepServer, err := egressserver.NewWHEP(hub, se)
+	whepServer, err := egress.NewWHEP(hub, se)
 	if err != nil {
 		panic(err)
 	}
-
-	efs, err := egressserver.NewFileServer(hub)
+	efs, err := egress.NewFileServer(hub)
 	if err != nil {
 		panic(err)
 	}
-
-	fileServer, err := servers.NewFileServer(hub)
-	if err != nil {
-		panic(err)
-	}
-
-	egressRTPServer, err := egressserver.NewRTPServer(hub)
-	if err != nil {
-		panic(err)
-	}
-
-	ingressRTPServer, err := servers.NewRTPServer(hub)
+	egressRTPServer, err := egress.NewRTPServer(hub)
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +69,7 @@ func main() {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return e.Start(":8080")
+		return e.Start(fmt.Sprintf(":%d", viper.GetInt("general.port")))
 	})
 	if err := g.Wait(); err != nil {
 		panic(err)

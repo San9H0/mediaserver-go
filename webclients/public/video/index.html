@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<!--    <video controls></video>-->
+<video id="video" controls></video>
+<button id="playBtn">Play</button>
+
+<script>
+
+
+    var assetURL = '../output_opus_fmp4.mp4';
+    // Need to be specific for Blink regarding codecs
+    // ./mp4info frag_bunny.mp4 | grep Codec
+    // var mimeCodec = 'video/mp4; codecs="avc1.4D401F, mp4a.40.2"';
+    var mimeCodec = 'video/mp4; codecs="avc1.4D401F, opus"';
+    var mediaSource = new MediaSource;
+
+    var video = document.querySelector('video');
+    const playBtn = document.getElementById('playBtn');
+    playBtn.addEventListener('click', async () => {
+        await video.play()
+    });
+
+    window.onload = function () {
+        console.log("window.onload")
+
+        if ('MediaSource' in window && MediaSource.isTypeSupported(mimeCodec)) {
+            //console.log(mediaSource.readyState); // closed
+            video.src = URL.createObjectURL(mediaSource);
+            mediaSource.addEventListener('error', (event) => {
+                console.log("mediaSource error")
+            });
+            mediaSource.addEventListener('sourceclose', (event) => {
+                console.log("mediaSource sourceclose")
+            });
+            mediaSource.addEventListener('sourceended', (event) => {
+                console.log("mediaSource sourceended")
+            });
+            mediaSource.addEventListener('sourceopen', async (event) => {
+                console.log("mediaSource sourceopen")
+                await sourceOpen(event)
+            });
+        } else {
+            console.error('Unsupported MIME type or codec: ', mimeCodec);
+        }
+    };
+
+
+
+    async function sourceOpen (_) {
+        console.log("sourceOpen");
+        var sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+
+        response = await fetch(assetURL)
+        data = await response.arrayBuffer()
+        console.log("data:", data)
+        sourceBuffer.addEventListener('abort', function (event) {
+            console.log("sourceBuffer abort")
+        });
+        sourceBuffer.addEventListener('error', function (event) {
+            console.log("sourceBuffer error", event)
+        });
+        sourceBuffer.addEventListener('update', function (_) {
+            console.log("sourceBuffer update")
+            console.log("sourceBuffer.updating:", sourceBuffer.updating)
+            console.log("mediaSource.readyState:", mediaSource.readyState)
+        });
+        sourceBuffer.addEventListener('updatestart', function (_) {
+            console.log("sourceBuffer updatestart")
+            console.log("sourceBuffer.updating:", sourceBuffer.updating)
+            console.log("mediaSource.readyState:", mediaSource.readyState)
+        });
+        sourceBuffer.addEventListener('updateend', async function (event) {
+            console.log("sourceBuffer updateend")
+            console.log("sourceBuffer.updating:", sourceBuffer.updating)
+            console.log("mediaSource.readyState:", mediaSource.readyState)
+            mediaSource.endOfStream()
+        });
+        sourceBuffer.appendBuffer(data);
+        console.log("sourceBuffer:", sourceBuffer)
+    };
+
+    function fetchAB (url, cb) {
+        var xhr = new XMLHttpRequest;
+        xhr.open('get', url);
+        xhr.responseType = 'arraybuffer';
+        xhr.onload = function () {
+            cb(xhr.response);
+        };
+        xhr.send();
+    };
+
+</script>
+</body>
+</html>

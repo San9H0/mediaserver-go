@@ -2,23 +2,21 @@ package endpoints
 
 import (
 	"github.com/labstack/echo/v4"
-	"mediaserver-go/dto"
+	"mediaserver-go/utils/dto"
 	"net/http"
 )
 
-type FileHandler struct {
+type IngressFileHandler struct {
 	ingressServer IngressFileServer
-	egressServer  EgressFileServer
 }
 
-func NewFileHandler(ingressServer IngressFileServer, egressServer EgressFileServer) FileHandler {
-	return FileHandler{
+func NewIngressFileHandler(ingressServer IngressFileServer) IngressFileHandler {
+	return IngressFileHandler{
 		ingressServer: ingressServer,
-		egressServer:  egressServer,
 	}
 }
 
-func (w *FileHandler) Handle(c echo.Context) error {
+func (w *IngressFileHandler) Handle(c echo.Context) error {
 	token, err := getToken(c)
 	if err != nil {
 		return err
@@ -29,19 +27,44 @@ func (w *FileHandler) Handle(c echo.Context) error {
 		return err
 	}
 
-	req.Token = token
-	resp, err := w.ingressServer.StartSession(req)
+	streamID := token
+	resp, err := w.ingressServer.StartSession(streamID, req)
 	if err != nil {
 		return err
 	}
 	_ = resp
-	//r, err := w.egressServer.StartSession("FileServerID", dto.EgressFileRequest{
-	//	Token: token,
-	//})
-	//_ = r
-	//if err != nil {
-	//	return err
-	//}
+
+	c.Response().WriteHeader(http.StatusOK)
+	return nil
+}
+
+type EgressFileHandler struct {
+	egressServer EgressFileServer
+}
+
+func NewEgressFileHandler(egressServer EgressFileServer) EgressFileHandler {
+	return EgressFileHandler{
+		egressServer: egressServer,
+	}
+}
+
+func (w *EgressFileHandler) Handle(c echo.Context) error {
+	token, err := getToken(c)
+	if err != nil {
+		return err
+	}
+
+	var req dto.EgressFileRequest
+	if err := c.Bind(&req); err != nil {
+		return err
+	}
+
+	streamID := token
+	resp, err := w.egressServer.StartSession(streamID, req)
+	if err != nil {
+		return err
+	}
+	_ = resp
 
 	c.Response().WriteHeader(http.StatusOK)
 	return nil

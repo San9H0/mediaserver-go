@@ -29,8 +29,8 @@ var payloadTypeMap = map[types.CodecType]CodecInfo{
 }
 
 type RTPSession struct {
-	conn  *net.UDPConn
-	track *hubs.Track
+	conn         *net.UDPConn
+	sourceTracks []*hubs.Track
 
 	targetAddr string
 	targetPort int
@@ -40,23 +40,19 @@ type RTPSession struct {
 	sd         sdp.SessionDescription
 }
 
-func NewRTPSession(targetAddr string, targetPort int, track *hubs.Track) (*RTPSession, error) {
+type RTPTrack struct {
+	ssrc      uint32
+	pt        uint8
+	clockRate uint32
+}
+
+func NewRTPSession(targetAddr string, targetPort int, sourceTracks []*hubs.Track) (*RTPSession, error) {
 	target, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", targetAddr, targetPort))
 	if err != nil {
 		return nil, err
 	}
 
 	conn, err := net.DialUDP("udp", nil, target)
-	if err != nil {
-		return nil, err
-	}
-
-	availableCodecs, ok := payloadTypeMap[track.CodecType()]
-	if !ok {
-		return nil, fmt.Errorf("unsupported codec type: %s", track.CodecType())
-	}
-
-	videoCodec, err := track.VideoCodec()
 	if err != nil {
 		return nil, err
 	}
@@ -83,34 +79,51 @@ func NewRTPSession(targetAddr string, targetPort int, track *hubs.Track) (*RTPSe
 			StopTime:  0,
 		},
 	})
-	md := &sdp.MediaDescription{
-		MediaName: sdp.MediaName{
-			Media: "video",
-			Port: sdp.RangedPort{
-				Value: targetPort,
+
+	for _, sourceTrack := range sourceTracks {
+		availableCodecs, ok := payloadTypeMap[sourceTrack.CodecType()]
+		if !ok {
+			return nil, fmt.Errorf("unsupported codec type: %s", sourceTrack.CodecType())
+		}
+
+		videoCodec, err := sourceTrack.VideoCodec()
+		if err != nil {
+			return nil, err
+		}
+		capa, err := videoCodec.WebRTCCodecCapability()
+		if err != nil {
+			return nil, err
+		}
+		md := &sdp.MediaDescription{
+			MediaName: sdp.MediaName{
+				Media: sourceTrack.MediaType().String(),
+				Port: sdp.RangedPort{
+					Value: targetPort,
+				},
+				Protos:  []string{"RTP", "AVP"},
+				Formats: []string{fmt.Sprintf("%d", availableCodecs.PayloadType)},
 			},
-			Protos:  []string{"RTP", "AVP"},
-			Formats: []string{fmt.Sprintf("%d", availableCodecs.PayloadType)},
-		},
+		}
+		md.Attributes = append(md.Attributes, sdp.Attribute{
+			Key:   "rtpmap",
+			Value: fmt.Sprintf("%d %s/%d", availableCodecs.PayloadType, strings.ToUpper(string(sourceTrack.CodecType())), capa.ClockRate),
+		})
+		if capa.SDPFmtpLine != "" {
+			md.Attributes = append(md.Attributes, sdp.Attribute{
+				Key:   "fmtp",
+				Value: fmt.Sprintf("%d %s", availableCodecs.PayloadType, capa.SDPFmtpLine),
+			})
+		}
+		sd.MediaDescriptions = append(sd.MediaDescriptions, md)
 	}
-	md.Attributes = append(md.Attributes, sdp.Attribute{
-		Key:   "rtpmap",
-		Value: fmt.Sprintf("%d %s/%d", availableCodecs.PayloadType, strings.ToUpper(string(track.CodecType())), availableCodecs.ClockRate),
-	}, sdp.Attribute{
-		Key:   "fmtp",
-		Value: fmt.Sprintf("%d profile-level-id=%s;packetization-mode=1", availableCodecs.PayloadType, videoCodec.Profile()),
-	})
-	sd.MediaDescriptions = append(sd.MediaDescriptions, md)
 
 	return &RTPSession{
-		targetAddr: targetAddr,
-		targetPort: targetPort,
-		conn:       conn,
-		track:      track,
-		ssrc:       utils.RandomUint32(),
-		pt:         availableCodecs.PayloadType,
-		clockRate:  availableCodecs.ClockRate,
-		sd:         sd,
+		targetAddr:   targetAddr,
+		targetPort:   targetPort,
+		conn:         conn,
+		sourceTracks: sourceTracks,
+		ssrc:         utils.RandomUint32(),
+		sd:           sd,
 	}, nil
 }
 
@@ -134,12 +147,16 @@ func (r *RTPSession) SDP() string {
 func (r *RTPSession) Run(ctx context.Context) error {
 	defer r.conn.Close()
 	g, ctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		return r.readTrack(ctx, r.track)
-	})
+	for _, track := range r.sourceTracks {
+		g.Go(func() error {
+			return r.readTrack(ctx, track)
+		})
+	}
+
 	return g.Wait()
 }
 
+// 현재는 h264만 지원.
 func (r *RTPSession) readTrack(ctx context.Context, track *hubs.Track) error {
 	consumerCh := track.AddConsumer()
 	defer func() {
@@ -163,13 +180,6 @@ func (r *RTPSession) readTrack(ctx context.Context, track *hubs.Track) error {
 				_ = packetizer.Packetize(h264Codec.PPS(), 3000)
 			}
 			for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) {
-				//nalunit := h264.NALUType(rtpPacket.Payload[0] & 0x1F)
-				//fragmentNalunit := h264.NALUType(0)
-				//if nalunit == h264.NALUTypeFUA {
-				//	fragmentNalunit = h264.NALUType(rtpPacket.Payload[1] & 0x1F)
-				//}
-				//
-				//fmt.Println("[TESTDEBUG] write rtp sn:", rtpPacket.SequenceNumber, ", ts:", rtpPacket.Timestamp, ", pt:", rtpPacket.PayloadType, ", ssrc:", rtpPacket.SSRC, ", marker:", rtpPacket.Marker, ", nalunit:", nalunit, ", fragmentNalunit:", fragmentNalunit)
 				n, err := rtpPacket.MarshalTo(buf)
 				if err != nil {
 					continue

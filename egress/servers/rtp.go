@@ -3,10 +3,11 @@ package servers
 import (
 	"context"
 	"errors"
-	"mediaserver-go/dto"
+	"go.uber.org/zap"
 	"mediaserver-go/egress/sessions"
 	"mediaserver-go/hubs"
-	"mediaserver-go/utils/types"
+	"mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
 )
 
 type RTPServer struct {
@@ -25,22 +26,23 @@ func (f *RTPServer) StartSession(streamID string, req dto.EgressRTPRequest) (dto
 		return dto.EgressRTPResponse{}, errors.New("stream not found")
 	}
 
-	var videotrack *hubs.Track
-	for _, track := range stream.Tracks() {
-		if track.MediaType() == types.MediaTypeVideo {
-			videotrack = track
-			break
-		}
+	filteredSourceTracks, err := filterMediaTypesInStream(stream, req.MediaTypes)
+	if err != nil {
+		return dto.EgressRTPResponse{}, err
 	}
 
-	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, videotrack)
+	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, filteredSourceTracks)
 	if err != nil {
 		return dto.EgressRTPResponse{}, err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	_ = cancel
 
-	go fileSession.Run(ctx)
+	go func() {
+		if err := fileSession.Run(ctx); err != nil {
+			log.Logger.Warn("file session error", zap.Error(err))
+		}
+	}()
 	return dto.EgressRTPResponse{
 		PayloadType: fileSession.PayloadType(),
 		SDP:         fileSession.SDP(),

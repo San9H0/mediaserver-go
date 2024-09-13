@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
-	"mediaserver-go/goav/avutil"
+	pion "github.com/pion/webrtc/v3"
+	"mediaserver-go/ffmpeg/goav/avcodec"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/parser/format"
 	"mediaserver-go/utils/types"
 )
@@ -21,7 +23,6 @@ type H264 struct {
 	sps, pps      []byte
 	spsSet        *h264.SPS
 	width, height int
-	fps           float64
 	pixelFmt      int
 	extraData     []byte
 }
@@ -45,7 +46,6 @@ func NewH264(sps, pps []byte) (*H264, error) {
 		spsSet:    spsSet,
 		width:     spsSet.Width(),
 		height:    spsSet.Height(),
-		fps:       spsSet.FPS(),
 		pixelFmt:  makePixelFmt(spsSet),
 		extraData: format.ExtraDataForAVC(sps, pps),
 	}, nil
@@ -63,12 +63,16 @@ func (h *H264) Width() int {
 	return h.width
 }
 
+func (h *H264) ClockRate() uint32 {
+	return 90000
+}
+
 func (h *H264) Height() int {
 	return h.height
 }
 
 func (h *H264) FPS() float64 {
-	return h.fps
+	return 30
 }
 
 func (h *H264) PixelFormat() int {
@@ -90,8 +94,8 @@ func (h *H264) PPS() []byte {
 	return h.pps
 }
 
-func (h *H264) Profile() string {
-	profileIdc := h.extraData[0]
+func (h *H264) profile() string {
+	profileIdc := h.extraData[1]
 	profileCompatibility := h.extraData[2]
 	levelIdc := h.extraData[3]
 	return fmt.Sprintf("%02x%02x%02x", profileIdc, profileCompatibility, levelIdc)
@@ -110,4 +114,24 @@ func makePixelFmt(spsSet *h264.SPS) int {
 	default:
 		return avutil.AV_PIX_FMT_NONE
 	}
+}
+
+func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
+	return pion.RTPCodecCapability{
+		MimeType:     types.MimeTypeFromCodecType(h.CodecType()),
+		ClockRate:    h.ClockRate(),
+		Channels:     0,
+		SDPFmtpLine:  fmt.Sprintf("level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=%s", h.profile()),
+		RTCPFeedback: nil,
+	}, nil
+}
+
+func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
+	codecCtx.SetCodecID(types.CodecIDFromType(h.CodecType()))
+	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(h.MediaType()))
+	codecCtx.SetWidth(h.Width())
+	codecCtx.SetHeight(h.Height())
+	codecCtx.SetTimeBase(avutil.NewRational(1, int(h.FPS())))
+	codecCtx.SetPixelFormat(avutil.PixelFormat(h.PixelFormat()))
+	codecCtx.SetExtraData(h.ExtraData())
 }

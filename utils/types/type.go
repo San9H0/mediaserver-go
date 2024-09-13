@@ -2,8 +2,8 @@ package types
 
 import (
 	pion "github.com/pion/webrtc/v3"
-	"mediaserver-go/goav/avcodec"
-	"mediaserver-go/goav/avutil"
+	"mediaserver-go/ffmpeg/goav/avcodec"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"strings"
 )
 
@@ -15,6 +15,10 @@ const (
 	MediaTypeVideo   MediaType = "video"
 	MediaTypeAudio   MediaType = "audio"
 )
+
+func (m MediaType) String() string {
+	return string(m)
+}
 
 func MediaTypeFromFFMPEG(mediaType avutil.MediaType) MediaType {
 	switch mediaType {
@@ -64,6 +68,8 @@ func CodecTypeFromFFMPEG(codecID avcodec.CodecID) CodecType {
 	switch codecID {
 	case avcodec.AV_CODEC_ID_H264:
 		return CodecTypeH264
+	case avcodec.AV_CODEC_ID_VP8:
+		return CodecTypeVP8
 	case avcodec.AV_CODEC_ID_AAC:
 		return CodecTypeAAC
 	case avcodec.AV_CODEC_ID_OPUS:
@@ -77,6 +83,8 @@ func CodecIDFromType(codecType CodecType) avcodec.CodecID {
 	switch codecType {
 	case CodecTypeH264:
 		return avcodec.AV_CODEC_ID_H264
+	case CodecTypeVP8:
+		return avcodec.AV_CODEC_ID_VP8
 	case CodecTypeAAC:
 		return avcodec.AV_CODEC_ID_AAC
 	case CodecTypeOpus:

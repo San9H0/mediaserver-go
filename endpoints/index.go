@@ -5,30 +5,28 @@ import (
 	"fmt"
 	"github.com/labstack/echo/v4"
 	_ "github.com/pion/webrtc/v3"
-	"mediaserver-go/dto"
+	"go.uber.org/zap"
+	"mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
 	"time"
 )
 
 type WHIPServer interface {
-	StartSession(request dto.WHIPRequest) (dto.WHIPResponse, error)
+	StartSession(streamID string, request dto.WHIPRequest) (dto.WHIPResponse, error)
 }
-
+type IngressRTPServer interface {
+	StartSession(streamID string, request dto.IngressRTPRequest) (dto.IngressRTPResponse, error)
+}
 type IngressFileServer interface {
-	StartSession(request dto.IngressFileRequest) (dto.IngressFileResponse, error)
+	StartSession(streamID string, request dto.IngressFileRequest) (dto.IngressFileResponse, error)
 }
 
 type WHEPServer interface {
 	StartSession(streamID string, request dto.WHEPRequest) (dto.WHEPResponse, error)
 }
-
 type EgressFileServer interface {
 	StartSession(streamID string, request dto.EgressFileRequest) (dto.EgressFileResponse, error)
 }
-
-type IngressRTPServer interface {
-	StartSession(streamID string, request dto.IngressRTPRequest) (dto.IngressRTPResponse, error)
-}
-
 type EgressRTPServer interface {
 	StartSession(streamID string, request dto.EgressRTPRequest) (dto.EgressRTPResponse, error)
 }
@@ -49,7 +47,7 @@ func Initialize(
 	e := echo.New()
 
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		fmt.Println("err:", err)
+		log.Logger.Warn("http error", zap.Error(err))
 	}
 
 	e.Use(RequestLogger)
@@ -60,17 +58,18 @@ func Initialize(
 	})
 
 	whipHandler := NewWhipHandler(whipServer, egressFileServer)
+	ingressFileHandler := NewIngressFileHandler(ingressFileServer)
+	ingressRTPHandler := NewIngressRTPHandler(ingressRTPServer)
 	e.POST("/v1/whip", whipHandler.Handle)
+	e.POST("/v1/ingress/files", ingressFileHandler.Handle)
+	e.POST("/v1/ingress/rtp", ingressRTPHandler.HandleIngress)
 
 	whepHandler := NewWHEPHandler(whepServer)
+	egressFileHandler := NewEgressFileHandler(egressFileServer)
+	egressRTPHandler := NewEgressRTPHandler(egressRTPServer)
 	e.POST("/v1/whep", whepHandler.Handle)
-
-	fileHandler := NewFileHandler(ingressFileServer, egressFileServer)
-	e.POST("/v1/files", fileHandler.Handle)
-
-	egressRTPHandler := NewRTPHandler(ingressRTPServer, egressRTPServer)
-	e.POST("/v1/rtp/out", egressRTPHandler.HandleEgress)
-	e.POST("/v1/rtp/in", egressRTPHandler.HandleIngress)
+	e.POST("/v1/egress/files", egressFileHandler.Handle)
+	e.POST("/v1/egress/rtp", egressRTPHandler.HandleEgress)
 
 	return e
 }

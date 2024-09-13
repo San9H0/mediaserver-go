@@ -4,19 +4,21 @@ import (
 	"context"
 	"fmt"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/google/uuid"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	"github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"io"
 	"mediaserver-go/hubs"
 	hubcodecs "mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/generators"
+	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/ntp"
 	"mediaserver-go/utils/types"
-	"net"
 	"sync/atomic"
 	"time"
 )
@@ -41,7 +43,6 @@ type OnTrack struct {
 }
 
 func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.Track) (WHEPSession, error) {
-	fmt.Println("[TESTDEBUG] Whep offer:", offer)
 	onTrack := make(chan OnTrack, 10)
 	onConnectionState := make(chan pion.PeerConnectionState, 10)
 	id, err := generators.GenerateID()
@@ -49,36 +50,41 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 		return WHEPSession{}, err
 	}
 
+	fmt.Println("[TESTDEBUG] whep tracks:", len(tracks))
 	me := &pion.MediaEngine{}
 	for _, track := range tracks {
-		_ = track
-		if videoCodec, _ := track.VideoCodec(); videoCodec != nil {
-			//videoCodec.Profile()
-			// 42001f
+		switch track.MediaType() {
+		case types.MediaTypeVideo:
+			fmt.Println("[TESTDEBUG] whep video...")
+			videoCodec, err := track.VideoCodec()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			webrtcCodecCapability, err := videoCodec.WebRTCCodecCapability()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			fmt.Println("[TESTDEBUG] capability:", webrtcCodecCapability.SDPFmtpLine)
+
 			if err := me.RegisterCodec(pion.RTPCodecParameters{
-				RTPCodecCapability: pion.RTPCodecCapability{
-					MimeType:     types.MimeTypeFromCodecType(videoCodec.CodecType()),
-					ClockRate:    90000,
-					Channels:     0,
-					SDPFmtpLine:  fmt.Sprintf("level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4D401F"),
-					RTCPFeedback: nil,
-				},
-				PayloadType: 127,
+				RTPCodecCapability: webrtcCodecCapability,
+				PayloadType:        127,
 			}, pion.RTPCodecTypeVideo); err != nil {
 				return WHEPSession{}, err
 			}
-		}
-
-		if audioCodec, _ := track.AudioCodec(); audioCodec != nil {
+		case types.MediaTypeAudio:
+			fmt.Println("[TESTDEBUG] whep audio...")
+			audioCodec, err := track.AudioCodec()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			webrtcCodecCapability, err := audioCodec.WebRTCCodecCapability()
+			if err != nil {
+				return WHEPSession{}, err
+			}
 			if err := me.RegisterCodec(pion.RTPCodecParameters{
-				RTPCodecCapability: pion.RTPCodecCapability{
-					MimeType:     types.MimeTypeFromCodecType(audioCodec.CodecType()),
-					ClockRate:    uint32(audioCodec.SampleRate()),
-					Channels:     uint16(audioCodec.Channels()),
-					SDPFmtpLine:  "a=fmtp:111 minptime=10;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1",
-					RTCPFeedback: nil,
-				},
-				PayloadType: 111,
+				RTPCodecCapability: webrtcCodecCapability,
+				PayloadType:        111,
 			}, pion.RTPCodecTypeAudio); err != nil {
 				return WHEPSession{}, err
 			}
@@ -97,17 +103,28 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 	var localTracks []*pion.TrackLocalStaticRTP
 	var senders []*pion.RTPSender
 
+	streamID, err := uuid.NewRandom()
+	if err != nil {
+		return WHEPSession{}, err
+	}
 	for _, track := range tracks {
-		_ = track
-		if videoCodec, _ := track.VideoCodec(); videoCodec != nil {
-			//_ = videoCodec.Profile()
-			localTrack, err := pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{
-				MimeType:     types.MimeTypeFromCodecType(videoCodec.CodecType()),
-				ClockRate:    90000,
-				Channels:     0,
-				SDPFmtpLine:  fmt.Sprintf("level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=4D401F"),
-				RTCPFeedback: nil,
-			}, "videoTrackID", "streamID")
+		switch track.MediaType() {
+		case types.MediaTypeVideo:
+			videoCodec, err := track.VideoCodec()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			fmt.Println("[TESTDEBUG] whep videoCodec...")
+			trackID, err := uuid.NewRandom()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+
+			webrtcCodecCapability, err := videoCodec.WebRTCCodecCapability()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			localTrack, err := pion.NewTrackLocalStaticRTP(webrtcCodecCapability, trackID.String(), streamID.String())
 			if err != nil {
 				fmt.Println("NewTrackLocalStaticRTP err:", err)
 				continue
@@ -119,16 +136,22 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 			}
 			localTracks = append(localTracks, localTrack)
 			senders = append(senders, sender)
-
-		}
-		if audioCodec, _ := track.AudioCodec(); audioCodec != nil {
-			localTrack, err := pion.NewTrackLocalStaticRTP(pion.RTPCodecCapability{
-				MimeType:     types.MimeTypeFromCodecType(audioCodec.CodecType()),
-				ClockRate:    uint32(audioCodec.SampleRate()),
-				Channels:     uint16(audioCodec.Channels()),
-				SDPFmtpLine:  "a=fmtp:111 minptime=10;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1",
-				RTCPFeedback: nil,
-			}, "audioTrackID", "streamID")
+			fmt.Println("[TESTDEBUG] videoCodec...senders:", len(senders))
+		case types.MediaTypeAudio:
+			audioCodec, err := track.AudioCodec()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			fmt.Println("[TESTDEBUG] whep audioCodec...")
+			trackID, err := uuid.NewRandom()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			webrtcCodecCApability, err := audioCodec.WebRTCCodecCapability()
+			if err != nil {
+				return WHEPSession{}, err
+			}
+			localTrack, err := pion.NewTrackLocalStaticRTP(webrtcCodecCApability, trackID.String(), streamID.String())
 			if err != nil {
 				fmt.Println("audio NewTrackLocalStaticRTP err:", err)
 				continue
@@ -142,7 +165,9 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 			}
 			senders = append(senders, sender)
 			localTracks = append(localTracks, localTrack)
+			fmt.Println("[TESTDEBUG] audioCodec...senders:", len(senders))
 		}
+
 	}
 
 	if err := pc.SetRemoteDescription(pion.SessionDescription{
@@ -152,13 +177,13 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 		return WHEPSession{}, err
 	}
 
-	candCh := make(chan *pion.ICECandidate, 10)
+	candidateCh := make(chan *pion.ICECandidate, 10)
 	pc.OnICECandidate(func(candidate *pion.ICECandidate) {
 		if candidate == nil {
-			close(candCh)
+			close(candidateCh)
 			return
 		}
-		candCh <- candidate
+		candidateCh <- candidate
 	})
 	pc.OnConnectionStateChange(func(connectionState pion.PeerConnectionState) {
 		utils.SendOrDrop(onConnectionState, connectionState)
@@ -179,7 +204,7 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 		return WHEPSession{}, err
 	}
 
-	for range candCh {
+	for range candidateCh {
 	}
 
 	return WHEPSession{
@@ -196,12 +221,12 @@ func NewWHEPSession(offer, token string, se pion.SettingEngine, tracks []*hubs.T
 }
 
 func (w *WHEPSession) Answer() string {
-	fmt.Println("sdp answer:", w.pc.LocalDescription().SDP)
 	return w.pc.LocalDescription().SDP
 }
 
 func (w *WHEPSession) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
+	fmt.Println("[TESTDEBUG] w.tracks:", len(w.tracks), ", w.senders", len(w.senders), ", w.localTracks:", w.localTracks)
 	for i, track := range w.tracks {
 		sender := w.senders[i]
 		localTracks := w.localTracks[i]
@@ -223,11 +248,8 @@ func (w *WHEPSession) Run(ctx context.Context) error {
 }
 
 func (w *WHEPSession) run(ctx context.Context) error {
-	fmt.Println("[TESTDEBUG] Session Started")
 	defer func() {
-		fmt.Println("[TESTDEBUG] Session Closing")
 		w.pc.Close()
-		fmt.Println("[TESTDEBUG] Session Closed")
 	}()
 
 	for {
@@ -235,7 +257,8 @@ func (w *WHEPSession) run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case onTrack := <-w.onTrack:
-			fmt.Println("whep track:", onTrack.remote.ID())
+			_ = onTrack
+
 		case connectionState := <-w.onConnectionState:
 			fmt.Println("whep conn:", connectionState.String())
 			switch connectionState {
@@ -248,29 +271,25 @@ func (w *WHEPSession) run(ctx context.Context) error {
 }
 
 func (w *WHEPSession) readTrack(ctx context.Context, track *hubs.Track, localTrack *pion.TrackLocalStaticRTP, sender *pion.RTPSender) error {
-	target, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", "127.0.0.1", 5004))
-	if err != nil {
-		return err
-	}
-
-	conn, err := net.DialUDP("udp", nil, target)
-	if err != nil {
-		return err
-	}
-
 	consumerCh := track.AddConsumer()
 	defer func() {
 		track.RemoveConsumer(consumerCh)
 	}()
-	startKeyFrame := false
-	_ = startKeyFrame
 
 	ssrc := uint32(sender.GetParameters().Encodings[0].SSRC)
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
-	packetizer := rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.H264Payloader{}, rtp.NewRandomSequencer(), 90000)
-	_ = packetizer
-	fmt.Println("[TESTDEBUG] pt:", pt, ", ssrc:", ssrc)
-	lastTS := uint32(0)
+	clockRate := sender.GetParameters().Codecs[0].ClockRate
+
+	fmt.Println("[TESDTEBUG] whep ssrc:", ssrc, "pt:", pt, "clockRate:", clockRate)
+	packetizer := rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.H264Payloader{}, rtp.NewRandomSequencer(), clockRate)
+	if track.MediaType() == types.MediaTypeAudio {
+		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.OpusPayloader{}, rtp.NewRandomSequencer(), clockRate)
+	}
+	if track.CodecType() == types.CodecTypeVP8 {
+		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.VP8Payloader{}, rtp.NewRandomSequencer(), clockRate)
+	}
+
+	var lastTS atomic.Uint32
 	var sendCount atomic.Uint32
 	var sendLength atomic.Uint32
 	buf := make([]byte, types.ReadBufferSize)
@@ -285,12 +304,13 @@ func (w *WHEPSession) readTrack(ctx context.Context, track *hubs.Track, localTra
 				sr := rtcp.SenderReport{
 					SSRC:        uint32(sender.GetParameters().Encodings[0].SSRC),
 					NTPTime:     uint64(ntp.GetNTPTime(time.Now())),
-					RTPTime:     lastTS,
+					RTPTime:     lastTS.Load(),
 					PacketCount: sendCount.Load(),
 					OctetCount:  sendLength.Load(),
 				}
 				if err := w.pc.WriteRTCP([]rtcp.Packet{&sr}); err != nil {
-					fmt.Println("write rtcp err:", err)
+					log.Logger.Warn("write rtcp err", zap.Error(err))
+					return
 				}
 			}
 		}
@@ -306,13 +326,47 @@ func (w *WHEPSession) readTrack(ctx context.Context, track *hubs.Track, localTra
 			}
 
 			if track.MediaType() == types.MediaTypeVideo {
-				if h264.NALUType(unit.Payload[0]&0x1f) == h264.NALUTypeIDR {
-					codec, _ := track.VideoCodec()
-					h264Codec := codec.(*hubcodecs.H264)
-					_ = packetizer.Packetize(h264Codec.SPS(), 3000)
-					_ = packetizer.Packetize(h264Codec.PPS(), 3000)
+				if track.CodecType() == types.CodecTypeH264 {
+					if h264.NALUType(unit.Payload[0]&0x1f) == h264.NALUTypeIDR {
+						codec, _ := track.VideoCodec()
+						h264Codec := codec.(*hubcodecs.H264)
+						_ = packetizer.Packetize(h264Codec.SPS(), 3000)
+						_ = packetizer.Packetize(h264Codec.PPS(), 3000)
+					}
+					for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) { //todo 추상화 필요. h264로 가정함.
+						n, err := rtpPacket.MarshalTo(buf)
+						if err != nil {
+							fmt.Println("marshal rtp err:", err)
+							continue
+						}
+
+						if _, err := localTrack.Write(buf[:n]); err != nil {
+							fmt.Println("write rtp err:", err)
+						}
+						sendCount.Add(1)
+						sendLength.Add(uint32(n))
+						lastTS.Store(rtpPacket.Timestamp)
+					}
 				}
-				for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) {
+				if track.CodecType() == types.CodecTypeVP8 {
+					for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) { //todo 추상화 필요. h264로 가정함.
+						n, err := rtpPacket.MarshalTo(buf)
+						if err != nil {
+							fmt.Println("marshal rtp err:", err)
+							continue
+						}
+
+						if _, err := localTrack.Write(buf[:n]); err != nil {
+							fmt.Println("write rtp err:", err)
+						}
+						sendCount.Add(1)
+						sendLength.Add(uint32(n))
+						lastTS.Store(rtpPacket.Timestamp)
+					}
+				}
+			}
+			if track.MediaType() == types.MediaTypeAudio {
+				for _, rtpPacket := range packetizer.Packetize(unit.Payload, 960) { // todo. 추상화 필요. opus 로 가정함
 					n, err := rtpPacket.MarshalTo(buf)
 					if err != nil {
 						fmt.Println("marshal rtp err:", err)
@@ -324,12 +378,8 @@ func (w *WHEPSession) readTrack(ctx context.Context, track *hubs.Track, localTra
 					}
 					sendCount.Add(1)
 					sendLength.Add(uint32(n))
-					conn.Write(buf[:n])
-					lastTS = rtpPacket.Timestamp
+					lastTS.Store(rtpPacket.Timestamp)
 				}
-			}
-			if track.MediaType() == types.MediaTypeAudio {
-
 			}
 		}
 	}

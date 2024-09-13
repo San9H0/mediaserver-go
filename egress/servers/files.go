@@ -3,10 +3,13 @@ package servers
 import (
 	"context"
 	"errors"
-	"mediaserver-go/dto"
+	"go.uber.org/zap"
 	"mediaserver-go/egress/sessions"
 	"mediaserver-go/hubs"
 	"mediaserver-go/utils/buffers"
+	"mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
+	"time"
 )
 
 type FileServer struct {
@@ -25,13 +28,22 @@ func (f *FileServer) StartSession(streamID string, req dto.EgressFileRequest) (d
 		return dto.EgressFileResponse{}, errors.New("stream not found")
 	}
 
-	fileSession, err := sessions.NewFileSession(req.Path, stream.Tracks(), buffers.NewMemoryBuffer())
+	filteredSourceTracks, err := filterMediaTypesInStream(stream, req.MediaTypes)
 	if err != nil {
 		return dto.EgressFileResponse{}, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = cancel
 
-	go fileSession.Run(ctx)
+	fileSession, err := sessions.NewFileSession(req.Path, filteredSourceTracks, buffers.NewMemoryBuffer())
+	if err != nil {
+		return dto.EgressFileResponse{}, err
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(req.Interval)*time.Millisecond)
+		defer cancel()
+		if err := fileSession.Run(ctx); err != nil {
+			log.Logger.Warn("file session error", zap.Error(err))
+		}
+	}()
 	return dto.EgressFileResponse{}, nil
 }

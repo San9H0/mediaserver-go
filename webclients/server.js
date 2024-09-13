@@ -20,7 +20,7 @@ app.post('/whip', async (req, res) => {
 });
 
 app.post('/whep', async (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'whep/index.html'));
+    res.sendFile(path.join(__dirname, 'public', 'webrtc/index.html'));
 });
 
 app.use("/*", createProxyMiddleware({

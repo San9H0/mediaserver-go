@@ -7,24 +7,27 @@ import (
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"sync"
+	"time"
 )
 
 type Track struct {
 	mu sync.RWMutex
 
-	ready     bool
+	closed    bool
 	consumers []chan units.Unit
 
 	mediaType types.MediaType
 	codecType types.CodecType
 
-	codec codecs.Codec
+	codecset chan codecs.Codec
+	codec    codecs.Codec
 }
 
 func NewTrack(mediaType types.MediaType, codecType types.CodecType) *Track {
 	return &Track{
 		mediaType: mediaType,
 		codecType: codecType,
+		codecset:  make(chan codecs.Codec),
 	}
 }
 
@@ -50,37 +53,53 @@ func (t *Track) IsReady() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return t.ready
+	return t.closed
 }
 
 func (t *Track) SetVideoCodec(c codecs.VideoCodec) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-
-	if t.ready {
+	t.codec = c
+	if t.closed {
 		return
 	}
-	t.ready = true
-	t.codec = c
+	t.closed = true
+	close(t.codecset)
 }
 
 func (t *Track) SetAudioCodec(c codecs.AudioCodec) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if t.ready {
+	t.codec = c
+	if t.closed {
 		return
 	}
-	t.ready = true
-	t.codec = c
+	t.closed = true
+	close(t.codecset)
+}
+
+func (t *Track) Codec() (codecs.Codec, error) {
+	select {
+	case <-t.codecset:
+	case <-time.After(500 * time.Millisecond):
+		return nil, errors.New("video codec not set")
+	}
+
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.codec, nil
 }
 
 func (t *Track) VideoCodec() (codecs.VideoCodec, error) {
+	select {
+	case <-t.codecset:
+	case <-time.After(500 * time.Millisecond):
+		return nil, errors.New("video codec not set")
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if t.codec == nil {
-		return nil, nil
-	}
 	c, ok := t.codec.(codecs.VideoCodec)
 	if !ok {
 		return nil, errors.New("invalid codec")
@@ -89,11 +108,14 @@ func (t *Track) VideoCodec() (codecs.VideoCodec, error) {
 }
 
 func (t *Track) AudioCodec() (codecs.AudioCodec, error) {
+	select {
+	case <-t.codecset:
+	case <-time.After(500 * time.Millisecond):
+		return nil, errors.New("video codec not set")
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	if t.codec == nil {
-		return nil, nil
-	}
 	c, ok := t.codec.(codecs.AudioCodec)
 	if !ok {
 		return nil, errors.New("invalid codec")

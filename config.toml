@@ -1,0 +1,7 @@
+[General]
+Port = 8080
+
+[Log]
+Level = "debug"
+Path = "log.log"
+

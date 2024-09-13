@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/pion/rtp"
 	"mediaserver-go/hubs/codecs"
 	"sync"
 )
@@ -52,7 +53,8 @@ payload의 첫번째 바이트를 가지고 NAL unit을 확인한다.
 - 29: FU-B (Fragmentation units)
 */
 
-func (h *H264Parser) Parse(payload []byte) [][]byte {
+func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
+	payload := rtpPacket.Payload
 	if len(payload) < 1 {
 		return nil
 	}
@@ -64,14 +66,16 @@ func (h *H264Parser) Parse(payload []byte) [][]byte {
 	)
 
 	naluType := h264.NALUType(payload[commonHeaderIdx] & 0x1F)
+
+	var sps_, pps_ []byte = nil, nil
 	switch {
 	case 1 <= naluType && naluType <= 23:
 		switch naluType {
 		case h264.NALUTypeSEI, h264.NALUTypeFillerData, h264.NALUTypeAccessUnitDelimiter:
 			return nil
 		case h264.NALUTypeSPS, h264.NALUTypePPS:
-			h.extractSPSPPS(payload)
-			return [][]byte{payload}
+			h.setSPSPPS(h.extractSPSPPS(payload))
+			fallthrough
 		default:
 			return [][]byte{payload}
 		}
@@ -94,8 +98,15 @@ func (h *H264Parser) Parse(payload []byte) [][]byte {
 			currOffset += naluSize
 		}
 		for _, au := range aus {
-			h.extractSPSPPS(au)
+			sps, pps := h.extractSPSPPS(au)
+			if sps != nil {
+				sps_ = sps
+			}
+			if pps != nil {
+				pps_ = pps
+			}
 		}
+		h.setSPSPPS(sps_, pps_)
 		return aus
 	case 25 <= naluType && naluType <= 27:
 		panic(fmt.Errorf("not implemented naluType:%d", naluType))
@@ -115,7 +126,9 @@ func (h *H264Parser) Parse(payload []byte) [][]byte {
 		}
 		h.fragments = append(h.fragments, payload[fragmentHeaderIdx+1:]...)
 		if e != 0 {
-			h.extractSPSPPS(h.fragments)
+			if fragmentNALU == h264.NALUTypeSPS || fragmentNALU == h264.NALUTypePPS {
+				h.setSPSPPS(h.extractSPSPPS(payload))
+			}
 			return [][]byte{h.fragments}
 		}
 		return nil
@@ -126,31 +139,46 @@ func (h *H264Parser) Parse(payload []byte) [][]byte {
 }
 
 // extract SPS and PPS without decoding RTP packets
-func (h *H264Parser) extractSPSPPS(payload []byte) {
+func (h *H264Parser) extractSPSPPS(payload []byte) ([]byte, []byte) {
 	if len(payload) < 1 {
-		return
+		return nil, nil
 	}
 
 	typ := h264.NALUType(payload[0] & 0x1F)
-
+	var sps, pps []byte
 	switch typ {
 	case h264.NALUTypeSPS:
 		if !bytes.Equal(h.sps, payload) {
-			h.sps = payload
+			sps = payload
 		}
 	case h264.NALUTypePPS:
 		if !bytes.Equal(h.pps, payload) {
-			h.pps = payload
+			pps = payload
 		}
 	default:
+		return nil, nil
+	}
+	return sps, pps
+}
+
+func (h *H264Parser) setSPSPPS(sps, pps []byte) {
+	spsChanged, ppsChanged := false, false
+	if len(sps) != 0 && !bytes.Equal(h.sps, sps) {
+		h.sps = sps
+		spsChanged = true
+	}
+	if len(pps) != 0 && !bytes.Equal(h.pps, pps) {
+		h.pps = pps
+		ppsChanged = true
+	}
+	if !spsChanged && !ppsChanged {
+		return
 	}
 
-	if h.sps != nil && h.pps != nil {
-		var err error
-		h.codec, err = codecs.NewH264(h.sps, h.pps)
-		if err != nil {
-			fmt.Println("extractSPSandPPS err:", err)
-			return
-		}
+	var err error
+	h.codec, err = codecs.NewH264(h.sps, h.pps)
+	if err != nil {
+		fmt.Println("extractSPSandPPS err:", err)
+		return
 	}
 }

@@ -2,9 +2,9 @@ package servers
 
 import (
 	"context"
-	"mediaserver-go/dto"
 	"mediaserver-go/hubs"
 	"mediaserver-go/ingress/sessions"
+	"mediaserver-go/utils/dto"
 )
 
 type FileServer struct {
@@ -17,8 +17,7 @@ func NewFileServer(hub *hubs.Hub) (FileServer, error) {
 	}, nil
 }
 
-func (f *FileServer) StartSession(req dto.IngressFileRequest) (dto.IngressFileResponse, error) {
-	streamID := req.Token
+func (f *FileServer) StartSession(streamID string, req dto.IngressFileRequest) (dto.IngressFileResponse, error) {
 	stream := hubs.NewStream()
 	f.hub.AddStream(streamID, stream)
 

@@ -1,6 +1,9 @@
 package hubs
 
-import "sync"
+import (
+	"mediaserver-go/utils/types"
+	"sync"
+)
 
 type Stream struct {
 	mu sync.RWMutex
@@ -35,6 +38,16 @@ func (s *Stream) Tracks() []*Track {
 	defer s.mu.RUnlock()
 	tracks := make([]*Track, 0, len(s.tracks))
 	return append(tracks, s.tracks...)
+}
+
+func (s *Stream) TracksMap() map[types.MediaType]*Track {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	tracks := make(map[types.MediaType]*Track)
+	for _, t := range s.tracks {
+		tracks[t.MediaType()] = t
+	}
+	return tracks
 }
 
 func (s *Stream) Close() {

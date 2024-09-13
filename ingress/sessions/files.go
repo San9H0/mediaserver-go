@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mediaserver-go/goav/avcodec"
-	"mediaserver-go/goav/avformat"
-	"mediaserver-go/goav/avutil"
+	"mediaserver-go/ffmpeg/goav/avcodec"
+	"mediaserver-go/ffmpeg/goav/avformat"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/parser/format"
@@ -67,6 +67,7 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		return FileSession{}, errors.New("no target")
 	}
 
+	fmt.Println("[TESTDEBUG] videoTrack != nil:", videoTrack != nil)
 	if videoTrack != nil {
 		inputStream := inputFormatCtx.Streams()[videoIndex]
 
@@ -88,15 +89,11 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		inputStream := inputFormatCtx.Streams()[audioIndex]
 		inputCodecpar := inputStream.CodecParameters()
 
-		aacCodec := codecs.NewAAC()
-		aacCodec.SetMetaData(codecs.AACMetadata{
-			CodecType:  types.CodecTypeFromFFMPEG(inputCodecpar.CodecID()),
-			MediaType:  types.MediaTypeFromFFMPEG(inputCodecpar.CodecType()),
+		audioTrack.SetAudioCodec(codecs.NewAAC(codecs.AACParameters{
 			SampleRate: inputCodecpar.SampleRate(),
 			Channels:   inputCodecpar.Channels(),
 			SampleFmt:  inputCodecpar.Format(),
-		})
-		audioTrack.SetAudioCodec(aacCodec)
+		}))
 	}
 
 	fmt.Println("videoIndex:", videoIndex, ", audioIndex:", audioIndex)
