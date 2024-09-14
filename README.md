@@ -60,3 +60,8 @@ livekit
 
 
 http://127.0.0.1:8080/v1/whip
+
+
+## RTMP
+https://veovera.org/docs/enhanced/enhanced-rtmp-v2.pdf
+https://veovera.org/docs/legacy/amf0-file-format-spec.pdf

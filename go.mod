@@ -3,6 +3,7 @@ module mediaserver-go
 go 1.22.5
 
 replace github.com/pion/rtp => ../rtp
+replace github.com/yutopp/go-rtmp => ../go-rtmp
 
 require (
 	github.com/bluenviron/gortsplib/v4 v4.10.4
