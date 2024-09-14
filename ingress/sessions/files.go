@@ -82,14 +82,14 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 			return FileSession{}, err
 		}
 
-		videoTrack.SetVideoCodec(h264Codecs)
+		videoTrack.SetCodec(h264Codecs)
 	}
 
 	if audioTrack != nil {
 		inputStream := inputFormatCtx.Streams()[audioIndex]
 		inputCodecpar := inputStream.CodecParameters()
 
-		audioTrack.SetAudioCodec(codecs.NewAAC(codecs.AACParameters{
+		audioTrack.SetCodec(codecs.NewAAC(codecs.AACParameters{
 			SampleRate: inputCodecpar.SampleRate(),
 			Channels:   inputCodecpar.Channels(),
 			SampleFmt:  inputCodecpar.Format(),
@@ -153,7 +153,6 @@ func (s *FileSession) Run(ctx context.Context) error {
 					DTS:      pkt.DTS(),
 					Duration: pkt.Duration(),
 					TimeBase: istream.TimeBase().Den(),
-					Flags:    pkt.Flag(),
 				})
 			}
 
@@ -173,7 +172,6 @@ func (s *FileSession) Run(ctx context.Context) error {
 				DTS:      pkt.DTS(),
 				Duration: pkt.Duration(),
 				TimeBase: istream.TimeBase().Den(),
-				Flags:    pkt.Flag(),
 			})
 			if delay > 0 {
 				time.Sleep(time.Duration(delay) * time.Microsecond)

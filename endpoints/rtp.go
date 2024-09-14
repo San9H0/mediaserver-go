@@ -3,7 +3,9 @@ package endpoints
 import (
 	"encoding/json"
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 	"mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
 	"net/http"
 )
 
@@ -28,8 +30,8 @@ func (i *IngressRTPHandler) HandleIngress(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
-	req.Token = token
-	resp, err := i.ingressRTPServer.StartSession(token, req)
+	streamID := token
+	resp, err := i.ingressRTPServer.StartSession(streamID, req)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
@@ -63,6 +65,11 @@ func (w *EgressRTPPHandler) HandleEgress(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
 	}
 
+	log.Logger.Debug("egress rtp body",
+		zap.String("messageType", "request"),
+		zap.Any("body", req),
+	)
+
 	streamID := token
 	resp, err := w.egressRTPServer.StartSession(streamID, req)
 	if err != nil {
@@ -77,5 +84,10 @@ func (w *EgressRTPPHandler) HandleEgress(c echo.Context) error {
 	if _, err = c.Response().Write(b); err != nil {
 		return err
 	}
+
+	log.Logger.Debug("egress rtp body",
+		zap.String("messageType", "response"),
+		zap.Any("body", string(b)),
+	)
 	return nil
 }

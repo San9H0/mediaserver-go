@@ -3,32 +3,25 @@ package sessions
 import (
 	"context"
 	"fmt"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
 	"mediaserver-go/hubs"
+	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/hubs/parsers"
-	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"net"
-	"sync"
 )
 
 type RTPSession struct {
-	conn   *net.UDPConn
-	stream *hubs.Stream
-	ssrc   uint32
-	pt     int
-	tracks []*Track
+	conn     *net.UDPConn
+	stream   *hubs.Stream
+	pt       uint8
+	track    *hubs.Track
+	parser   parsers.Parser
+	timebase int
 }
 
-type Track struct {
-	target     *hubs.Track
-	rtpTrackCh chan *rtp.Packet
-	pt         uint8
-}
-
-func NewRTPSession(ip string, port int, pt uint8, stream *hubs.Stream) (RTPSession, error) {
+func NewRTPSession(ip string, port int, pt uint8, codecType types.CodecType, stream *hubs.Stream) (RTPSession, error) {
 	addr := net.UDPAddr{
 		IP:   net.ParseIP(ip),
 		Port: port,
@@ -38,36 +31,53 @@ func NewRTPSession(ip string, port int, pt uint8, stream *hubs.Stream) (RTPSessi
 		return RTPSession{}, err
 	}
 
-	var tracks []*Track
-	target := hubs.NewTrack(types.MediaTypeVideo, types.CodecTypeH264)
-	stream.AddTrack(target)
+	parser, err := parsers.NewParser(codecType)
+	if err != nil {
+		return RTPSession{}, err
+	}
 
-	tracks = append(tracks, &Track{
-		target:     target,
-		rtpTrackCh: make(chan *rtp.Packet, 100),
-		pt:         pt,
-	})
+	fmt.Println("[TESTDEBG] codecParser:", parser)
+	var track *hubs.Track
+	timebase := 0
+	switch codecType {
+	case types.CodecTypeH264:
+		track = hubs.NewTrack(types.MediaTypeVideo, types.CodecTypeH264)
+		stream.AddTrack(track)
+		timebase = 90000
+	case types.CodecTypeVP8:
+		track = hubs.NewTrack(types.MediaTypeVideo, types.CodecTypeVP8)
+		stream.AddTrack(track)
+		timebase = 90000
+	case types.CodecTypeOpus:
+		track = hubs.NewTrack(types.MediaTypeAudio, types.CodecTypeOpus)
+		stream.AddTrack(track)
+		timebase = 48000
+	default:
+		return RTPSession{}, fmt.Errorf("unsupported codec type: %v", codecType)
+	}
 
 	return RTPSession{
-		conn:   conn,
-		stream: stream,
-		tracks: tracks,
+		pt:       pt,
+		conn:     conn,
+		stream:   stream,
+		parser:   parser,
+		track:    track,
+		timebase: timebase,
 	}, nil
 }
 
 func (r *RTPSession) Run(ctx context.Context) error {
-	ptMap := map[uint8]*Track{}
-	for _, track := range r.tracks {
-		ptMap[track.pt] = track
-		go r.readRTP(ctx, track)
-	}
+	startTS := uint32(0)
+	prevTS := uint32(0)
+	duration := 0
+	var codec codecs.Codec
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
 		}
-		buf := make([]byte, 3000)
+		buf := make([]byte, types.ReadBufferSize)
 
 		n, _, err := r.conn.ReadFromUDP(buf)
 		if err != nil {
@@ -81,63 +91,38 @@ func (r *RTPSession) Run(ctx context.Context) error {
 			continue
 		}
 
-		track, ok := ptMap[rtpPacket.PayloadType]
-		if !ok {
-			continue
+		if startTS == 0 {
+			startTS = rtpPacket.Timestamp
+		}
+		pts := rtpPacket.Timestamp - startTS
+
+		if rtpPacket.Timestamp != prevTS {
+			if prevTS == 0 {
+				duration = 0
+			} else {
+				duration = int(rtpPacket.Timestamp - prevTS)
+			}
 		}
 
-		utils.SendOrDrop(track.rtpTrackCh, rtpPacket)
-	}
-}
+		aus := r.parser.Parse(rtpPacket)
+		newCodec := r.parser.GetCodec()
+		if newCodec == nil {
+			continue
+		} else if newCodec != codec {
+			r.track.SetCodec(newCodec)
+			codec = newCodec
+		}
 
-func (r *RTPSession) readRTP(ctx context.Context, track *Track) error {
-	startTS := uint32(0)
-	prevTS := uint32(0)
-	duration := 0
-	parser := parsers.NewH264Parser()
-	var once sync.Once
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case rtpPacket := <-track.rtpTrackCh:
-			if startTS == 0 {
-				startTS = rtpPacket.Timestamp
-			}
-			pts := rtpPacket.Timestamp - startTS
-
-			if rtpPacket.Timestamp != prevTS {
-				if prevTS == 0 {
-					duration = 0
-				} else {
-					duration = int(rtpPacket.Timestamp - prevTS)
-				}
-			}
-
-			aus := parser.Parse(rtpPacket)
-			codec := parser.GetCodec()
-			if codec == nil {
-				continue
-			}
-			once.Do(func() {
-				track.target.SetVideoCodec(codec)
+		for _, au := range aus {
+			r.track.Write(units.Unit{
+				Payload:  au,
+				PTS:      int64(pts),
+				DTS:      int64(pts),
+				Duration: int64(duration),
+				TimeBase: r.timebase,
 			})
 
-			for _, au := range aus {
-				naluType := h264.NALUType(au[0] & 0x1F)
-				flags := 0
-				if naluType == h264.NALUTypeIDR {
-					flags = 1
-				}
-				track.target.Write(units.Unit{
-					Payload:  au,
-					PTS:      int64(pts),
-					DTS:      int64(pts),
-					Duration: int64(duration),
-					TimeBase: 90000,
-					Flags:    flags,
-				})
-			}
+			//packetizers.CommonPacketizer{}
 		}
 	}
 }

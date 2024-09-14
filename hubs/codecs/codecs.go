@@ -4,6 +4,7 @@ import (
 	"errors"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/ffmpeg/goav/avcodec"
+	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils/types"
 )
 
@@ -14,8 +15,10 @@ var (
 type Codec interface {
 	CodecType() types.CodecType
 	MediaType() types.MediaType
-	WebRTCCodecCapability() (pion.RTPCodecCapability, error)
 	SetCodecContext(codecCtx *avcodec.CodecContext)
+
+	WebRTCCodecCapability() (pion.RTPCodecCapability, error)
+	RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error)
 }
 
 type AudioCodec interface {

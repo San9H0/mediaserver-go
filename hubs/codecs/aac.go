@@ -1,9 +1,11 @@
 package codecs
 
 import (
+	"errors"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils/types"
 )
 
@@ -59,4 +61,8 @@ func (a *AAC) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetSampleRate(a.SampleRate())
 	avutil.AvChannelLayoutDefault(codecCtx.ChLayout(), a.Channels())
 	codecCtx.SetSampleFmt(avcodec.AvSampleFormat(a.SampleFormat()))
+}
+
+func (a *AAC) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error) {
+	return engines.RTPCodecParameters{}, errors.New("not implemented")
 }

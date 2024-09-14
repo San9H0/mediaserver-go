@@ -4,7 +4,7 @@ import (
 	"context"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/hubs/engines"
 	"mediaserver-go/ingress/sessions"
 	"mediaserver-go/utils/dto"
 )
@@ -17,7 +17,7 @@ type WHIPServer struct {
 
 func NewWHIP(hub *hubs.Hub, se pion.SettingEngine) (WHIPServer, error) {
 	me := &pion.MediaEngine{}
-	for kind, capabilities := range codecs.GetWebRTCCapabilities() {
+	for kind, capabilities := range engines.GetWebRTCCapabilities() {
 		for _, capability := range capabilities {
 			if err := me.RegisterCodec(capability, kind); err != nil {
 			}

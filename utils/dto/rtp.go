@@ -3,10 +3,10 @@ package dto
 import "mediaserver-go/utils/types"
 
 type IngressRTPRequest struct {
-	Token       string
-	Addr        string `json:"addr"`
-	Port        int    `json:"port"`
-	PayloadType uint8  `json:"payloadType"`
+	Addr        string          `json:"addr"`
+	Port        int             `json:"port"`
+	PayloadType uint8           `json:"payloadType"`
+	CodecType   types.CodecType `json:"codecType"`
 }
 
 type IngressRTPResponse struct {
@@ -19,6 +19,5 @@ type EgressRTPRequest struct {
 }
 
 type EgressRTPResponse struct {
-	PayloadType uint8  `json:"payloadType"`
-	SDP         string `json:"sdp"`
+	SDP string `json:"sdp"`
 }

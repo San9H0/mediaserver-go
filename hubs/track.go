@@ -56,21 +56,9 @@ func (t *Track) IsReady() bool {
 	return t.closed
 }
 
-func (t *Track) SetVideoCodec(c codecs.VideoCodec) {
+func (t *Track) SetCodec(c codecs.Codec) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.codec = c
-	if t.closed {
-		return
-	}
-	t.closed = true
-	close(t.codecset)
-}
-
-func (t *Track) SetAudioCodec(c codecs.AudioCodec) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
 	t.codec = c
 	if t.closed {
 		return

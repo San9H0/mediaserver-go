@@ -80,6 +80,12 @@ func (cc *CodecContext) SetExtraData(data []byte) {
 	cc.extradata_size = C.int(len(data))
 }
 
+func (cc *CodecContext) ChangeExtraData(data []byte) {
+
+	cc.extradata = (*C.uint8_t)(C.CBytes(data))
+	cc.extradata_size = C.int(len(data))
+}
+
 func (cc *CodecContext) SetSampleFmt(sampleFmt AvSampleFormat) {
 	cc.sample_fmt = (C.enum_AVSampleFormat)(sampleFmt)
 }

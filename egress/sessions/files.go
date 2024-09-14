@@ -106,7 +106,7 @@ func (f *FileSession) init() error {
 
 	if f.extension == "mp4" {
 		if ret := f.outputFormatCtx.AvformatWriteHeaderWithFMP4("movflags", "frag_keyframe+empty_moov+default_base_moof"); ret < 0 {
-			return errors.New("avformat write header failed for mp4")
+			return errors.New("avformat write header failed for fmp4")
 		}
 	} else {
 		if ret := f.outputFormatCtx.AvformatWriteHeader(nil); ret < 0 {
@@ -138,6 +138,7 @@ func (f *FileSession) readTrack(ctx context.Context, index int, track *hubs.Trac
 	pkt := avcodec.AvPacketAlloc()
 	outputStream := f.outputFormatCtx.Streams()[index]
 	writer := files.NewAVPacketWriter(index, outputStream.TimeBase().Den(), track.MediaType(), track.CodecType())
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -146,6 +147,7 @@ func (f *FileSession) readTrack(ctx context.Context, index int, track *hubs.Trac
 			if !ok {
 				return nil
 			}
+
 			setPkt := writer.WriteAvPacket(unit, pkt)
 			if setPkt == nil {
 				continue
@@ -159,6 +161,7 @@ func (f *FileSession) readTrack(ctx context.Context, index int, track *hubs.Trac
 }
 
 func (f *FileSession) Finish() error {
+	log.Logger.Info("file session finish start")
 	f.outputFormatCtx.AvWriteTrailer()
 	avformat.AvIoContextFree(f.outputFormatCtx.Pb())
 	f.outputFormatCtx.AvformatFreeContext()

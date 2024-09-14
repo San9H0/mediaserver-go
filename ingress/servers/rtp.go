@@ -21,7 +21,7 @@ func (f *RTPServer) StartSession(streamID string, req dto.IngressRTPRequest) (dt
 	stream := hubs.NewStream()
 	f.hub.AddStream(streamID, stream)
 
-	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, req.PayloadType, stream)
+	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, req.PayloadType, req.CodecType, stream)
 	if err != nil {
 		return dto.IngressRTPResponse{}, err
 	}

@@ -4,11 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"github.com/pion/sdp/v3"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/engines"
 	"mediaserver-go/parser/format"
 	"mediaserver-go/utils/types"
+	"strings"
 )
 
 var (
@@ -116,6 +119,16 @@ func makePixelFmt(spsSet *h264.SPS) int {
 	}
 }
 
+func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
+	codecCtx.SetCodecID(types.CodecIDFromType(h.CodecType()))
+	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(h.MediaType()))
+	codecCtx.SetWidth(h.Width())
+	codecCtx.SetHeight(h.Height())
+	codecCtx.SetTimeBase(avutil.NewRational(1, int(h.FPS())))
+	codecCtx.SetPixelFormat(avutil.PixelFormat(h.PixelFormat()))
+	codecCtx.SetExtraData(h.ExtraData())
+}
+
 func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 	return pion.RTPCodecCapability{
 		MimeType:     types.MimeTypeFromCodecType(h.CodecType()),
@@ -126,12 +139,31 @@ func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 	}, nil
 }
 
-func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
-	codecCtx.SetCodecID(types.CodecIDFromType(h.CodecType()))
-	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(h.MediaType()))
-	codecCtx.SetWidth(h.Width())
-	codecCtx.SetHeight(h.Height())
-	codecCtx.SetTimeBase(avutil.NewRational(1, int(h.FPS())))
-	codecCtx.SetPixelFormat(avutil.PixelFormat(h.PixelFormat()))
-	codecCtx.SetExtraData(h.ExtraData())
+func (h *H264) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error) {
+	payloadType := 98
+	return engines.RTPCodecParameters{
+		PayloadType: uint8(payloadType),
+		ClockRate:   90000,
+		CodecType:   h.CodecType(),
+		MediaDescription: sdp.MediaDescription{
+			MediaName: sdp.MediaName{
+				Media: h.MediaType().String(),
+				Port: sdp.RangedPort{
+					Value: targetPort,
+				},
+				Protos:  []string{"RTP", "AVP"},
+				Formats: []string{fmt.Sprintf("%d", payloadType)},
+			},
+			Attributes: []sdp.Attribute{
+				{
+					Key:   "rtpmap",
+					Value: fmt.Sprintf("%d %s/%d", payloadType, strings.ToUpper(string(h.CodecType())), h.ClockRate()),
+				},
+				{
+					Key:   "fmtp",
+					Value: fmt.Sprintf("%d %s", payloadType, fmt.Sprintf("level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=%s", h.profile())),
+				},
+			},
+		},
+	}, nil
 }

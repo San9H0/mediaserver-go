@@ -44,7 +44,6 @@ func (f *RTPServer) StartSession(streamID string, req dto.EgressRTPRequest) (dto
 		}
 	}()
 	return dto.EgressRTPResponse{
-		PayloadType: fileSession.PayloadType(),
-		SDP:         fileSession.SDP(),
+		SDP: fileSession.SDP(),
 	}, nil
 }

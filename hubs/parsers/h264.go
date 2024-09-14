@@ -27,7 +27,7 @@ func NewH264Parser() *H264Parser {
 }
 
 // GetCodec 는 sps, pps 를 파싱하지 못한경우 nil 임.
-func (h *H264Parser) GetCodec() *codecs.H264 {
+func (h *H264Parser) GetCodec() codecs.Codec {
 	return h.codec
 }
 
@@ -67,7 +67,6 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 
 	naluType := h264.NALUType(payload[commonHeaderIdx] & 0x1F)
 
-	var sps_, pps_ []byte = nil, nil
 	switch {
 	case 1 <= naluType && naluType <= 23:
 		switch naluType {
@@ -81,6 +80,7 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 		}
 	case naluType == h264.NALUTypeSTAPA: // RTP 를 위한 nalunit
 		aus := [][]byte{}
+		var sps_, pps_ []byte = nil, nil
 		currOffset := stapHeaderIdx
 		for currOffset < len(payload) {
 			naluSize := int(binary.BigEndian.Uint16(payload[currOffset:]))
@@ -98,6 +98,7 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 			currOffset += naluSize
 		}
 		for _, au := range aus {
+
 			sps, pps := h.extractSPSPPS(au)
 			if sps != nil {
 				sps_ = sps
@@ -144,9 +145,9 @@ func (h *H264Parser) extractSPSPPS(payload []byte) ([]byte, []byte) {
 		return nil, nil
 	}
 
-	typ := h264.NALUType(payload[0] & 0x1F)
+	naluType := h264.NALUType(payload[0] & 0x1F)
 	var sps, pps []byte
-	switch typ {
+	switch naluType {
 	case h264.NALUTypeSPS:
 		if !bytes.Equal(h.sps, payload) {
 			sps = payload

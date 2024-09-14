@@ -18,7 +18,7 @@ func NewVP8Parser() *VP8Parser {
 	return &VP8Parser{}
 }
 
-func (v *VP8Parser) GetCodec() *codecs.VP8 {
+func (v *VP8Parser) GetCodec() codecs.Codec {
 	return v.codec
 }
 

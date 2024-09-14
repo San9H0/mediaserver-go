@@ -26,6 +26,8 @@ type VideoAVPacketWriter struct {
 
 	filter    Filter
 	bitStream BitStream
+
+	sps, pps []byte
 }
 
 func NewVideoAVPacketWriter(index int, timebase int, filter Filter, bitStream BitStream) *VideoAVPacketWriter {
@@ -46,8 +48,14 @@ func (v *VideoAVPacketWriter) WriteAvPacket(unit units.Unit, pkt *avcodec.Packet
 		v.baseDTS = unit.DTS
 	}
 	dts := unit.DTS - v.baseDTS
-	if !v.filter.Filter(unit) {
+
+	if v.filter.Drop(unit) {
 		return nil
+	}
+
+	flag := 0
+	if v.filter.KeyFrame(unit) {
+		flag = 1
 	}
 
 	inputTimebase := avutil.NewRational(1, unit.TimeBase)
@@ -60,7 +68,7 @@ func (v *VideoAVPacketWriter) WriteAvPacket(unit units.Unit, pkt *avcodec.Packet
 	data := v.bitStream.SetBitStream(unit)
 
 	pkt.SetData(data)
-	pkt.SetFlag(unit.Flags)
+	pkt.SetFlag(flag)
 	return pkt
 }
 
@@ -95,6 +103,6 @@ func (v *AudioAVPacketWriter) WriteAvPacket(unit units.Unit, pkt *avcodec.Packet
 	pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, inputTimebase, outputTimebase))
 	pkt.SetStreamIndex(v.index)
 	pkt.SetData(unit.Payload)
-	pkt.SetFlag(unit.Flags)
+	pkt.SetFlag(0) // 0
 	return pkt
 }

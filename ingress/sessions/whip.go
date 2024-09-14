@@ -3,7 +3,6 @@ package sessions
 import (
 	"context"
 	"fmt"
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	pion "github.com/pion/webrtc/v3"
@@ -129,7 +128,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 				})
 				go w.sendReceiverReport(ctx, stats)
 			} else {
-				target.SetAudioCodec(codecs.NewOpus(codecs.OpusParameters{
+				target.SetCodec(codecs.NewOpus(codecs.OpusParameters{
 					SampleRate: int(onTrack.remote.Codec().ClockRate),
 					Channels:   int(onTrack.remote.Codec().Channels),
 					SampleFmt:  int(avutil.AV_SAMPLE_FMT_S16),
@@ -154,7 +153,7 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 	duration := 0
 	h264Parser := parsers.NewH264Parser()
 	vp8Parser := parsers.NewVP8Parser()
-	var videoCodec codecs.VideoCodec
+	var videoCodec codecs.Codec
 	for {
 		buf := make([]byte, types.ReadBufferSize)
 		n, _, err := remote.Read(buf)
@@ -185,53 +184,43 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 
 		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeH264 {
 			aus := h264Parser.Parse(rtpPacket)
-			var codec codecs.VideoCodec
+			var codec codecs.Codec
 			codec = h264Parser.GetCodec()
 			if codec == nil {
 				continue
 			} else if videoCodec != codec {
-				target.SetVideoCodec(codec)
+				target.SetCodec(codec)
 				videoCodec = codec
 			}
 
 			for _, unit := range aus {
-				flags := 0
-				if h264.NALUType(unit[0]&0x1F) == h264.NALUTypeIDR {
-					flags = 1
-				}
 				target.Write(units.Unit{
 					Payload:  unit,
 					PTS:      int64(pts),
 					DTS:      int64(pts),
 					Duration: int64(duration),
 					TimeBase: int(remote.Codec().ClockRate),
-					Flags:    flags,
 				})
 			}
 		}
 		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeVP8 {
 			aus := vp8Parser.Parse(rtpPacket)
-			var codec codecs.VideoCodec
+			var codec codecs.Codec
 			codec = vp8Parser.GetCodec()
 			if codec == nil {
 				continue
 			} else if videoCodec != codec {
-				target.SetVideoCodec(codec)
+				target.SetCodec(codec)
 				videoCodec = codec
 			}
 
 			for _, unit := range aus {
-				flag := 0
-				if parsers.IsVP8KeyFrame(unit) {
-					flag = 1
-				}
 				target.Write(units.Unit{
 					Payload:  unit,
 					PTS:      int64(pts),
 					DTS:      int64(pts),
 					Duration: int64(duration),
 					TimeBase: int(remote.Codec().ClockRate),
-					Flags:    flag,
 				})
 			}
 		}
@@ -242,7 +231,6 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 				DTS:      int64(pts),
 				Duration: int64(duration),
 				TimeBase: int(remote.Codec().ClockRate),
-				Flags:    0,
 			})
 		}
 		prevTS = rtpPacket.Timestamp
