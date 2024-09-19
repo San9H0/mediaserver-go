@@ -1,7 +1,6 @@
 package hls
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -232,12 +231,11 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, unit un
 				diff := setPkt.PTS() - trackCtx.prevPTS
 				trackCtx.prevPTS = setPkt.PTS()
 				fDuration := float64(diff) / float64(trackCtx.outputStream.TimeBase().Den())
-				h.endpoint.AppendMedia(buf, fmt.Sprintf("output_%d.m4s", h.index), fDuration)
-
 				filepath := fmt.Sprintf("output_%d.m4s", h.index)
-				if err := writeFile(filepath, bytes.NewReader(buf)); err != nil {
-					return fmt.Errorf("error writing file: %w", err)
-				}
+				h.endpoint.AppendMedia(buf, fmt.Sprintf("output_%d.m4s", h.index), fDuration)
+				log.Logger.Info("hls Handler write file end",
+					zap.String("filepath", filepath),
+					zap.Int("size", len(buf)))
 				h.index++
 
 				avioCtx := avformat.AVIOOpenDynBuf()

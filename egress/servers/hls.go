@@ -44,8 +44,6 @@ func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSRe
 
 	video := handler.CodecString(types.MediaTypeVideo)
 	audio := handler.CodecString(types.MediaTypeAudio)
-	fmt.Println(video)
-	fmt.Println(audio)
 
 	playlist := m3u8.NewMasterPlaylist()
 	mediaPlayList, err := m3u8.NewMediaPlaylist(3, 3)
@@ -53,7 +51,6 @@ func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSRe
 		return dto.HLSResponse{}, err
 	}
 	mediaPlayList.SetDefaultMap("init.mp4", 0, 0)
-	//mediaPlayList.MediaType = m3u8.VOD
 
 	for _, track := range handler.NegotiatedTracks() {
 		if track.MediaType() == types.MediaTypeAudio {
