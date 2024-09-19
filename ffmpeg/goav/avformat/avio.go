@@ -3,6 +3,7 @@ package avformat
 import "C"
 import (
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"unsafe"
@@ -13,6 +14,7 @@ import (
 //#include <libavformat/avio.h>
 //extern int read_packet(void *, uint8_t *, int);
 //extern int write_packet(void *, uint8_t *, int);
+//extern int write_packet2(void *, uint8_t *, int);
 //extern int64_t seek(void *, int64_t, int);
 import "C"
 
@@ -61,6 +63,24 @@ func AVIoAllocContext(fmtCtx *FormatContext, buffer io.ReadWriteSeeker, buf *uin
 	return avioCtx
 }
 
+func AVIOOpenDynBuf() *AvIOContext {
+	avIOCtx := (*AvIOContext)(unsafe.Pointer((*C.struct_AVDictionary)(nil)))
+	C.avio_open_dyn_buf((**C.struct_AVIOContext)(unsafe.Pointer(&avIOCtx)))
+	return avIOCtx
+}
+
+func AVIOCloseDynBuf(avIOCtx *AvIOContext) []byte {
+	var buf *uint8
+	bufferLen := int(C.avio_close_dyn_buf((*C.struct_AVIOContext)(avIOCtx), (**C.uint8_t)(unsafe.Pointer(&buf))))
+	if bufferLen > 0 {
+		b := C.GoBytes(unsafe.Pointer(buf), C.int(bufferLen))
+		C.av_freep(unsafe.Pointer(&buf))
+		return b
+	}
+
+	return nil
+}
+
 func AVIOCloseP(pb **AvIOContext) int {
 	return int(C.avio_closep((**C.struct_AVIOContext)(unsafe.Pointer(pb))))
 }
@@ -73,6 +93,7 @@ func AvIoContextFree(avIOCtx *AvIOContext) {
 
 //export read_packet
 func read_packet(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
+	fmt.Println("[TESTDEBUG] read_packet called with buf_size:", buf_size)
 	ctx_ptr := (*FormatContext)(opaque)
 	value, ok := ContextBufferMap.Load(ctx_ptr)
 	if !ok {
@@ -92,8 +113,28 @@ func read_packet(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
 	return C.int(n)
 }
 
+//export write_packet2
+func write_packet2(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
+	fmt.Println("[TESTDEBUG] write_packet called with buf_size:", buf_size)
+	ctx_ptr := (*interface{})(opaque)
+	value, ok := ContextBufferMap.Load(ctx_ptr)
+	if !ok {
+		return -1
+	}
+	writer, ok := value.(io.Writer)
+	if !ok {
+		return -1
+	}
+	n, err := writer.Write(C.GoBytes(unsafe.Pointer(buf), C.int(buf_size)))
+	if err != nil {
+		return -1
+	}
+	return C.int(n)
+}
+
 //export write_packet
 func write_packet(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
+	fmt.Println("[TESTDEBUG] write_packet called with buf_size:", buf_size)
 	ctx_ptr := (*FormatContext)(opaque)
 	value, ok := ContextBufferMap.Load(ctx_ptr)
 	if !ok {
@@ -112,6 +153,7 @@ func write_packet(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
 
 //export seek
 func seek(opaque unsafe.Pointer, pos C.int64_t, whence C.int) C.int64_t {
+	fmt.Println("[TESTDEBUG] seek called with pos:", pos, "whence:", whence)
 	ctx_ptr := (*FormatContext)(opaque)
 	value, ok := ContextBufferMap.Load(ctx_ptr)
 	if !ok {

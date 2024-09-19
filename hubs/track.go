@@ -2,12 +2,13 @@ package hubs
 
 import (
 	"errors"
+	"sync"
+	"time"
+
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
-	"sync"
-	"time"
 )
 
 type Track struct {

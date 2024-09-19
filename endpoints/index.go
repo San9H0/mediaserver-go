@@ -3,12 +3,15 @@ package endpoints
 import (
 	"errors"
 	"fmt"
+	"mediaserver-go/egress/servers"
+	"time"
+
 	"github.com/labstack/echo/v4"
 	_ "github.com/pion/webrtc/v3"
 	"go.uber.org/zap"
+
 	"mediaserver-go/utils/dto"
 	"mediaserver-go/utils/log"
-	"time"
 )
 
 type WHIPServer interface {
@@ -30,6 +33,10 @@ type EgressFileServer interface {
 type EgressRTPServer interface {
 	StartSession(streamID string, request dto.EgressRTPRequest) (dto.EgressRTPResponse, error)
 }
+type HLSServer interface {
+	StartSession(streamID string, request dto.HLSRequest) (dto.HLSResponse, error)
+	GetHLSStream(streamID string) (*servers.HLSStreamHandle, error)
+}
 
 type Request struct {
 	Token string
@@ -42,7 +49,9 @@ func Initialize(
 	whepServer WHEPServer,
 	egressFileServer EgressFileServer,
 	ingressRTPServer IngressRTPServer,
-	egressRTPServer EgressRTPServer) *echo.Echo {
+	egressRTPServer EgressRTPServer,
+	hlsServer HLSServer,
+) *echo.Echo {
 	// Create a new Echo instance
 	e := echo.New()
 
@@ -67,9 +76,12 @@ func Initialize(
 	whepHandler := NewWHEPHandler(whepServer)
 	egressFileHandler := NewEgressFileHandler(egressFileServer)
 	egressRTPHandler := NewEgressRTPHandler(egressRTPServer)
+	hlsHandler := NewHLSHandler(hlsServer)
 	e.POST("/v1/whep", whepHandler.Handle)
 	e.POST("/v1/egress/files", egressFileHandler.Handle)
 	e.POST("/v1/egress/rtp", egressRTPHandler.HandleEgress)
+
+	hlsHandler.Register(e)
 
 	return e
 }

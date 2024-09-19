@@ -1,4 +1,4 @@
-package files
+package writers
 
 import (
 	"mediaserver-go/ffmpeg/goav/avcodec"
@@ -60,7 +60,9 @@ func (v *VideoAVPacketWriter) WriteAvPacket(unit units.Unit, pkt *avcodec.Packet
 
 	inputTimebase := avutil.NewRational(1, unit.TimeBase)
 	outputTimebase := avutil.NewRational(1, v.timebase)
-	pkt.SetPTS(avutil.AvRescaleQRound(pts, inputTimebase, outputTimebase, avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
+
+	newPTS := avutil.AvRescaleQRound(pts, inputTimebase, outputTimebase, avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX)
+	pkt.SetPTS(newPTS)
 	pkt.SetDTS(avutil.AvRescaleQRound(dts, inputTimebase, outputTimebase, avutil.AV_ROUND_NEAR_INF|avutil.AV_ROUND_PASS_MINMAX))
 	pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, inputTimebase, outputTimebase))
 	pkt.SetStreamIndex(v.index)

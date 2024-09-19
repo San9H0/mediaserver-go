@@ -22,9 +22,10 @@ import "C"
 
 import "C"
 import (
+	"unsafe"
+
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
-	"unsafe"
 	//"mediaserver-go/ffmpeg/goav/avutil"
 )
 
@@ -236,20 +237,26 @@ func AvformatOpenInput(ps **FormatContext, fi string, fmt *InputFormat, d **avut
 	return int(C.avformat_open_input((**C.struct_AVFormatContext)(unsafe.Pointer(ps)), cfi, (*C.struct_AVInputFormat)(fmt), (**C.struct_AVDictionary)(unsafe.Pointer(d))))
 }
 
-// // Return the output format in the list of registered output formats which best matches the provided parameters, or return NULL if there is no match.
-//
-//	func AvGuessFormat(sn, f, mt string) *OutputFormat {
-//		Cshort_name := C.CString(sn)
-//		defer C.free(unsafe.Pointer(Cshort_name))
-//
-//		Cfilename := C.CString(f)
-//		defer C.free(unsafe.Pointer(Cfilename))
-//
-//		Cmime_type := C.CString(mt)
-//		defer C.free(unsafe.Pointer(Cmime_type))
-//
-//		return (*OutputFormat)(C.av_guess_format(Cshort_name, Cfilename, Cmime_type))
-//	}
+// Return the output format in the list of registered output formats which best matches the provided parameters, or return NULL if there is no match.
+func AvGuessFormat(shortName, filename, mimeType string) *OutputFormat {
+	csn := (*C.char)(nil)
+	if len(shortName) > 0 {
+		csn = C.CString(shortName)
+		defer C.free(unsafe.Pointer(csn))
+	}
+	cfn := (*C.char)(nil)
+	if len(filename) > 0 {
+		cfn = C.CString(filename)
+		defer C.free(unsafe.Pointer(cfn))
+	}
+	cmt := (*C.char)(nil)
+	if len(mimeType) > 0 {
+		cmt = C.CString(mimeType)
+		defer C.free(unsafe.Pointer(cmt))
+	}
+	return (*OutputFormat)(C.av_guess_format(csn, cfn, cmt))
+}
+
 //
 // // Guess the codec ID based upon muxer and filename.
 //

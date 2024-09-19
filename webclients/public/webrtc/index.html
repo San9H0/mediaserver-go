@@ -31,13 +31,13 @@
 </div>
 
 <script>
-    const audioEncodings = [{maxBitrate: 96 * 1024}];
+    const audioEncodings = [{maxBitrate: 1024 * 1024}];
     const simulcastVideoEncodings = [
         {rid: "m", maxBitrate: 1024 * 1024},
         {rid: "l", maxBitrate: 300 * 1024, scaleResolutionDownBy: 2}
     ];
     const singleVideoEncodings = [
-        {maxBitrate: 1024 * 1024}
+        {maxBitrate: 1024 * 1024 * 1024}
     ];
 
     const webCapConstraints = {
@@ -151,7 +151,8 @@
         startVideoBtn.disabled = true;
         startVideoFMP4Btn.disabled = true;
 
-        const source = "../nobframe.mp4"
+        const source = "../test.mp4"
+        // const source = "../nobframe.mp4"
         // const source = "../output_opus_fmp4.mp4"
         try {
             console.log("new URL(source, document.baseURI).href:", new URL(source, document.baseURI).href)
@@ -224,42 +225,43 @@
         })
 
         // if (true) { // simulcast 를 체크하지 않았을때?
-        //     let param = pubVideoTransceiver.sender.getParameters()
-        //     param.degradationPreference = "maintain-resolution";
-        //     await pubVideoTransceiver.sender.setParameters(param)
+        let param = pubVideoTransceiver.sender.getParameters()
+        param.degradationPreference = "maintain-resolution";
+        await pubVideoTransceiver.sender.setParameters(param)
         // }
 
         console.log(RTCRtpSender.getCapabilities("video").codecs)
 
-        // videoCodec = "h264"
-        // let videoProfile = ""
-        // if (videoCodec === "h264") {
-        //     videoProfile = ""
-        //     // videoProfile = "42e01f"; // "42001f", "42e01f" // "4D401F"
-        // } else if (videoCodec === "vp9") {
-        //     videoProfile = "profile-id=1";
-        // }
-        //
-        // let selectedCodecs = RTCRtpSender.getCapabilities("video").codecs.filter(codec => {
-        //     return codec.mimeType.toLowerCase() === `video/${videoCodec}`
-        // })
-        // console.log("selected selectedCodec:", selectedCodecs)
-        //
-        // if (videoProfile !== "") {
-        //     selectedCodecs = [selectedCodecs.find(codec => {
-        //         if (videoProfile === "") {
-        //             return true
-        //         }
-        //         let _a;
-        //         return (
-        //             codec.sdpFmtpLine && ((_a = codec.sdpFmtpLine) === null || _a === void 0 ? void 0 : _a.indexOf(`profile-level-id=${videoProfile}`))
-        //         )
-        //     })]
-        // }
+        videoCodec = "h264"
+        let videoProfile = ""
+        if (videoCodec === "h264") {
+            // videoProfile = ""
+            // videoProfile = "42e01f"; // "42001f", "42e01f" // "4D401F"
+            videoProfile = "42001f"
+        } else if (videoCodec === "vp9") {
+            videoProfile = "profile-id=1";
+        }
 
-        // if (selectedCodecs.length > 0) {
-        //     pubVideoTransceiver.setCodecPreferences(selectedCodecs)
-        // }
+        let selectedCodecs = RTCRtpSender.getCapabilities("video").codecs.filter(codec => {
+            return codec.mimeType.toLowerCase() === `video/${videoCodec}`
+        })
+        console.log("selected selectedCodec:", selectedCodecs)
+
+        if (videoProfile !== "") {
+            selectedCodecs = [selectedCodecs.find(codec => {
+                if (videoProfile === "") {
+                    return true
+                }
+                let _a;
+                return (
+                    codec.sdpFmtpLine && ((_a = codec.sdpFmtpLine) === null || _a === void 0 ? void 0 : _a.indexOf(`profile-level-id=${videoProfile}`))
+                )
+            })]
+        }
+
+        if (selectedCodecs.length > 0) {
+            pubVideoTransceiver.setCodecPreferences(selectedCodecs)
+        }
         //
         // const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
         // const opusFilteredCodec = audioCodecs.filter(codec => {
@@ -287,7 +289,6 @@
             type: 'answer',
             sdp: answerSDP
         }));
-
     }
 
     async function startSub() {

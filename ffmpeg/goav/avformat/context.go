@@ -8,9 +8,10 @@ package avformat
 //#include <libavcodec/avcodec.h>
 import "C"
 import (
+	"unsafe"
+
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
-	"unsafe"
 )
 
 const (
@@ -152,27 +153,8 @@ func (f *FormatContext) AvformatCloseInput() {
 }
 
 // Allocate the stream private data and write the stream header to an output media file.
-func (f *FormatContext) AvformatWriteHeaderWithFMP4(key, value string) int {
-	opts := (*C.struct_AVDictionary)(unsafe.Pointer(nil))
-	ckey := (*C.char)(nil)
-	if len(key) > 0 {
-		ckey = C.CString(key)
-		defer C.free(unsafe.Pointer(ckey))
-	}
-
-	cvalue := (*C.char)(nil)
-	if len(value) > 0 {
-		cvalue = C.CString(value)
-		defer C.free(unsafe.Pointer(cvalue))
-	}
-
-	C.av_dict_set((**C.struct_AVDictionary)(&opts), ckey, cvalue, 0)
-	return int(C.avformat_write_header((*C.struct_AVFormatContext)(f), (**C.struct_AVDictionary)(unsafe.Pointer(&opts))))
-}
-
-// Allocate the stream private data and write the stream header to an output media file.
-func (f *FormatContext) AvformatWriteHeader(o *avutil.Dictionary) int {
-	return int(C.avformat_write_header((*C.struct_AVFormatContext)(f), (**C.struct_AVDictionary)(unsafe.Pointer(&o))))
+func (f *FormatContext) AvformatWriteHeader(o **avutil.Dictionary) int {
+	return int(C.avformat_write_header((*C.struct_AVFormatContext)(f), (**C.struct_AVDictionary)(unsafe.Pointer(o))))
 }
 
 // // Write a packet to an output media file.

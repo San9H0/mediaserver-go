@@ -1,7 +1,8 @@
-package files
+package writers
 
 import (
 	"encoding/binary"
+
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 )
@@ -13,16 +14,17 @@ type BitStream interface {
 func NewBitStream(codecType types.CodecType) BitStream {
 	switch codecType {
 	case types.CodecTypeH264:
-		return &BitStreamAVC{}
+		return &BitStreamAVCC{}
 	default:
 		return &BitStreamEmpty{}
 	}
 }
 
-type BitStreamAVC struct {
+// BitStreamAVCC is AVC Configuration Format
+type BitStreamAVCC struct {
 }
 
-func (h *BitStreamAVC) SetBitStream(unit units.Unit) []byte {
+func (h *BitStreamAVCC) SetBitStream(unit units.Unit) []byte {
 	avc := make([]byte, 4+len(unit.Payload))
 	binary.BigEndian.PutUint32(avc, uint32(len(unit.Payload)))
 	copy(avc[4:], unit.Payload)

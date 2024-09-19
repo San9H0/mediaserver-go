@@ -2,7 +2,9 @@ package codecs
 
 import (
 	"errors"
+
 	pion "github.com/pion/webrtc/v3"
+
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils/types"
@@ -38,4 +40,37 @@ type VideoCodec interface {
 	FPS() float64
 	PixelFormat() int
 	ExtraData() []byte
+}
+
+func GetExtension(videoCodec VideoCodec, audioCodec AudioCodec) (string, error) {
+	extension := ""
+	if videoCodec != nil && audioCodec != nil {
+		switch videoCodec.CodecType() {
+		case types.CodecTypeVP8:
+			extension = "webm"
+		case types.CodecTypeH264:
+			extension = "mp4"
+		default:
+			return "", errors.New("unsupported video codec")
+		}
+	} else if videoCodec != nil {
+		switch videoCodec.CodecType() {
+		case types.CodecTypeVP8:
+			extension = "mkv"
+		case types.CodecTypeH264:
+			extension = "m4v"
+		default:
+			return "", errors.New("unsupported video codec")
+		}
+	} else if audioCodec != nil {
+		switch audioCodec.CodecType() {
+		case types.CodecTypeVP8:
+			extension = "mka"
+		case types.CodecTypeH264:
+			extension = "m4a"
+		default:
+			return "", errors.New("unsupported video codec")
+		}
+	}
+	return extension, nil
 }

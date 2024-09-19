@@ -19,11 +19,13 @@ type H264Parser struct {
 	sps []byte
 	pps []byte
 
-	codec *codecs.H264
+	codec codecs.Codec
 }
 
 func NewH264Parser() *H264Parser {
-	return &H264Parser{}
+	return &H264Parser{
+		codec: nil,
+	}
 }
 
 // GetCodec 는 sps, pps 를 파싱하지 못한경우 nil 임.
@@ -98,7 +100,6 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 			currOffset += naluSize
 		}
 		for _, au := range aus {
-
 			sps, pps := h.extractSPSPPS(au)
 			if sps != nil {
 				sps_ = sps
@@ -173,6 +174,9 @@ func (h *H264Parser) setSPSPPS(sps, pps []byte) {
 		ppsChanged = true
 	}
 	if !spsChanged && !ppsChanged {
+		return
+	}
+	if len(h.sps) == 0 || len(h.pps) == 0 {
 		return
 	}
 

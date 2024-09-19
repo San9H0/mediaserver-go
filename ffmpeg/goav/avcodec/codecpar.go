@@ -19,6 +19,10 @@ import (
 	"unsafe"
 )
 
+func (cp *AvCodecParameters) CodecTag() int {
+	return int(cp.codec_tag)
+}
+
 func (cp *AvCodecParameters) CodecID() CodecID {
 	return CodecID(cp.codec_id)
 }

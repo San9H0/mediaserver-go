@@ -97,6 +97,18 @@ func (h *H264) PPS() []byte {
 	return h.pps
 }
 
+func (h *H264) profileIDC() uint8 {
+	return h.extraData[1]
+}
+
+func (h *H264) constraintFlag() uint8 {
+	return h.extraData[2]
+}
+
+func (h *H264) level() uint8 {
+	return h.extraData[3]
+}
+
 func (h *H264) profile() string {
 	profileIdc := h.extraData[1]
 	profileCompatibility := h.extraData[2]
@@ -126,7 +138,10 @@ func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetHeight(h.Height())
 	codecCtx.SetTimeBase(avutil.NewRational(1, int(h.FPS())))
 	codecCtx.SetPixelFormat(avutil.PixelFormat(h.PixelFormat()))
+	codecCtx.SetProfile(int(h.profileIDC()))
+	codecCtx.SetLevel(int(h.level()))
 	codecCtx.SetExtraData(h.ExtraData())
+
 }
 
 func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {

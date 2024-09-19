@@ -22,6 +22,14 @@ func (cc *CodecContext) SetCodecID(codecID CodecID) {
 	cc.codec_id = C.enum_AVCodecID(codecID)
 }
 
+func (cc *CodecContext) SetProfile(profile int) {
+	cc.profile = C.int(profile)
+}
+
+func (cc *CodecContext) SetLevel(level int) {
+	cc.level = C.int(level)
+}
+
 func (cc *CodecContext) CodecType() avutil.MediaType {
 	return avutil.MediaType(cc.codec_type)
 }

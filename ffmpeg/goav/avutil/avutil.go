@@ -10,6 +10,11 @@ package avutil
 //#cgo pkg-config: libavutil
 //#include <libavutil/avutil.h>
 //#include <stdlib.h>
+//char * fn_av_fourcc2str(int fourcc) {
+//  return av_fourcc2str(fourcc);
+//}
+import "C"
+
 import "C"
 import (
 	"unsafe"
@@ -79,4 +84,8 @@ func AvIntListLengthForSize(e uint, l int, t uint64) uint {
 // Return the fractional representation of the internal time base.
 func AvGetTimeBaseQ() Rational {
 	return (Rational)(C.av_get_time_base_q())
+}
+
+func AvFourcc2str(fourcc int) string {
+	return C.GoString(C.fn_av_fourcc2str(C.int(fourcc)))
 }

@@ -25,6 +25,9 @@ https://heesu-choi.com/codec/h264-avcc-annexb/
 https://ffmpeg.org/doxygen/3.3/h264__mp4toannexb__bsf_8c_source.html
 https://www.ffmpeg.org/doxygen/2.6/avc_8c_source.html#l00106
 
+### hls
+https://datatracker.ietf.org/doc/html/draft-pantos-http-live-streaming
+
 
 ### ffmpeg
 ffmpeg -re -i ./test.mp4 -an -c:v libx264 -x264opts bframes=0 -x264-params keyint=30 -bsf:v h264_mp4toannexb -payload_type 127 -f rtp rtp://127.0.0.1:5000
@@ -53,6 +56,9 @@ curl -X POST http://127.0.0.1:8080/v1/egress/rtp -H "Authorization: Bearer strea
 
 ### egress files
 curl -X POST http://127.0.0.1:8080/v1/egress/files -H "Authorization: Bearer streamkey" -H "Content-Type: application/json" -d '{"path":"./output4","mediaTypes":["video","audio"],"interval":20000}'
+
+### HLS
+curl -X POST http://127.0.0.1:8080/v1/hls -H "Authorization: Bearer streamkey" -H "Content-Type: application/json" -d '{"path":"./output4","mediaTypes":["video","audio"],"interval":20000}'
 
 pion
 bluenviron

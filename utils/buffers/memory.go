@@ -5,21 +5,25 @@ import (
 	"io"
 )
 
-var _ io.ReadWriteSeeker = &MemoryBuffer{}
+const (
+	bufferSize = 4 * 1024 * 1024 // 16MB
+)
 
-type MemoryBuffer struct {
+var _ io.ReadWriteSeeker = &Memory{}
+
+type Memory struct {
 	buf    []byte
 	cursor int64
 }
 
-func NewMemoryBuffer() *MemoryBuffer {
-	return &MemoryBuffer{
-		buf:    make([]byte, 0, 1024*1024*1024),
+func NewMemory() *Memory {
+	return &Memory{
+		buf:    make([]byte, 0, bufferSize),
 		cursor: 0,
 	}
 }
 
-func (m *MemoryBuffer) Read(dst []byte) (int, error) {
+func (m *Memory) Read(dst []byte) (int, error) {
 	start := m.cursor
 	if start >= int64(len(m.buf)) {
 		return 0, io.EOF
@@ -29,7 +33,7 @@ func (m *MemoryBuffer) Read(dst []byte) (int, error) {
 	return n, nil
 }
 
-func (m *MemoryBuffer) Write(src []byte) (int, error) {
+func (m *Memory) Write(src []byte) (int, error) {
 	start := m.cursor
 	expected := start + int64(len(src))
 	if expected > int64(len(m.buf)) {
@@ -40,7 +44,7 @@ func (m *MemoryBuffer) Write(src []byte) (int, error) {
 	return n, nil
 }
 
-func (m *MemoryBuffer) Seek(offset int64, whence int) (int64, error) {
+func (m *Memory) Seek(offset int64, whence int) (int64, error) {
 	baseOffset := int64(0)
 	switch whence {
 	case io.SeekStart:
@@ -65,7 +69,7 @@ func (m *MemoryBuffer) Seek(offset int64, whence int) (int64, error) {
 	return newOffset, nil
 }
 
-func (m *MemoryBuffer) extendToSize(size int64) {
+func (m *Memory) extendToSize(size int64) {
 	if size <= int64(cap(m.buf)) {
 		m.buf = m.buf[:size]
 		return

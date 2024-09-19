@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/pion/ice/v2"
 	pion "github.com/pion/webrtc/v3"
 	"github.com/spf13/viper"
 	"golang.org/x/sync/errgroup"
+
 	egress "mediaserver-go/egress/servers"
 	"mediaserver-go/endpoints"
 	"mediaserver-go/hubs"
@@ -64,6 +66,11 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	hlsServer, err := egress.NewHLSServer(hub)
+	if err != nil {
+		panic(err)
+	}
+
 	go func() {
 		rtmpServer, err := ingress.NewRTMPServer(hub)
 		_ = rtmpServer
@@ -72,7 +79,7 @@ func main() {
 		}
 
 	}()
-	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &efs, &ingressRTPServer, &egressRTPServer)
+	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &efs, &ingressRTPServer, &egressRTPServer, &hlsServer)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

@@ -31,17 +31,28 @@ const (
 	AV_DICT_MULTIKEY        = int(C.AV_DICT_MULTIKEY)
 )
 
+func MyTest() {
+
+}
+
 func DictionaryNull() *Dictionary {
 	return (*Dictionary)(unsafe.Pointer((*C.struct_AVDictionary)(nil)))
 }
 
+func DictionaryEntryNull() *DictionaryEntry {
+	return (*DictionaryEntry)(unsafe.Pointer((*C.struct_AVDictionaryEntry)(nil)))
+}
+
 func (d *Dictionary) AvDictGet(key string, prev *DictionaryEntry, flags int) *DictionaryEntry {
-	Ckey := C.CString(key)
-	defer C.free(unsafe.Pointer(Ckey))
+	ckey := (*C.char)(nil)
+	if len(key) > 0 {
+		ckey = C.CString(key)
+		defer C.free(unsafe.Pointer(ckey))
+	}
 
 	return (*DictionaryEntry)(C.av_dict_get(
 		(*C.struct_AVDictionary)(d),
-		Ckey,
+		ckey,
 		(*C.struct_AVDictionaryEntry)(prev),
 		C.int(flags),
 	))
@@ -49,6 +60,25 @@ func (d *Dictionary) AvDictGet(key string, prev *DictionaryEntry, flags int) *Di
 
 func (d *Dictionary) AvDictCount() int {
 	return int(C.av_dict_count((*C.struct_AVDictionary)(d)))
+}
+
+func AvDictSet(d **Dictionary, key, value string, flags int) int {
+	ckey := (*C.char)(nil)
+	if len(key) > 0 {
+		ckey = C.CString(key)
+		defer C.free(unsafe.Pointer(ckey))
+	}
+	cvalue := (*C.char)(nil)
+	if len(value) > 0 {
+		cvalue = C.CString(value)
+		defer C.free(unsafe.Pointer(cvalue))
+	}
+	return int(C.av_dict_set(
+		(**C.struct_AVDictionary)(unsafe.Pointer(d)),
+		ckey,
+		cvalue,
+		C.int(flags),
+	))
 }
 
 func (d *Dictionary) AvDictSet(key, value string, flags int) int {

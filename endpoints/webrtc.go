@@ -1,12 +1,14 @@
 package endpoints
 
 import (
+	"io"
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
-	"io"
+
 	dto2 "mediaserver-go/utils/dto"
 	"mediaserver-go/utils/log"
-	"net/http"
 )
 
 type WhipHandler struct {

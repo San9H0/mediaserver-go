@@ -3,11 +3,10 @@ package servers
 import (
 	"context"
 	"errors"
-	"go.uber.org/zap"
 	"mediaserver-go/egress/sessions"
+	"mediaserver-go/egress/sessions/rtp"
 	"mediaserver-go/hubs"
 	"mediaserver-go/utils/dto"
-	"mediaserver-go/utils/log"
 )
 
 type RTPServer struct {
@@ -31,19 +30,19 @@ func (f *RTPServer) StartSession(streamID string, req dto.EgressRTPRequest) (dto
 		return dto.EgressRTPResponse{}, err
 	}
 
-	fileSession, err := sessions.NewRTPSession(req.Addr, req.Port, filteredSourceTracks)
-	if err != nil {
+	handler := rtp.NewHandler(req.Addr, req.Port)
+	if err := handler.Init(context.Background(), filteredSourceTracks); err != nil {
 		return dto.EgressRTPResponse{}, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = cancel
 
+	sess := sessions.NewSession[*rtp.TrackContext](handler)
 	go func() {
-		if err := fileSession.Run(ctx); err != nil {
-			log.Logger.Warn("file session error", zap.Error(err))
-		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		sess.Run(ctx)
 	}()
+
 	return dto.EgressRTPResponse{
-		SDP: fileSession.SDP(),
+		SDP: handler.SDP(),
 	}, nil
 }
