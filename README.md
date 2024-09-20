@@ -28,6 +28,9 @@ https://www.ffmpeg.org/doxygen/2.6/avc_8c_source.html#l00106
 ### hls
 https://datatracker.ietf.org/doc/html/draft-pantos-http-live-streaming
 
+## WebRTC
+https://getstream.io/resources/projects/webrtc/advanced/bitrates-traffic/
+
 
 ### ffmpeg
 ffmpeg -re -i ./test.mp4 -an -c:v libx264 -x264opts bframes=0 -x264-params keyint=30 -bsf:v h264_mp4toannexb -payload_type 127 -f rtp rtp://127.0.0.1:5000

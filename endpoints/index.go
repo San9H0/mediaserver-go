@@ -35,7 +35,7 @@ type EgressRTPServer interface {
 }
 type HLSServer interface {
 	StartSession(streamID string, request dto.HLSRequest) (dto.HLSResponse, error)
-	GetHLSStream(streamID string) (*servers.HLSStreamHandle, error)
+	GetHLSStream(streamID string) (*servers.HLSHandler, error)
 }
 
 type Request struct {
@@ -56,7 +56,11 @@ func Initialize(
 	e := echo.New()
 
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-		log.Logger.Warn("http error", zap.Error(err))
+
+		log.Logger.Warn("http error",
+			zap.String("request_url", c.Request().URL.String()),
+			zap.Error(err),
+		)
 	}
 
 	e.Use(RequestLogger)

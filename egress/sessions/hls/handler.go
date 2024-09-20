@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"io"
 	"mediaserver-go/ffmpeg/goav/avutil"
-	"os"
 	"slices"
 	"sync"
 	"time"
-
-	"go.uber.org/zap"
 
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avformat"
@@ -25,7 +22,7 @@ import (
 
 type Endpoint interface {
 	SetPayload(payload []byte, name string)
-	AppendMedia(payload []byte, name string, duration float64)
+	AppendMedia(payload []byte, index int, duration float64)
 }
 
 type Handler struct {
@@ -141,10 +138,6 @@ func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
 		if ret := avcodec.AvCodecParametersFromContext(outputStream.CodecParameters(), avCodecCtx); ret < 0 {
 			return errors.New("codec parameters from context failed")
 		}
-		fmt.Println("[TESTDEBUG] CodecID:", outputStream.CodecParameters().CodecID())
-		fmt.Println("[TESTDEBUG] CodecTag:", outputStream.CodecParameters().CodecTag(), ", str:", avutil.AvFourcc2str(outputStream.CodecParameters().CodecTag()))
-		fmt.Println("[TESTDEBUG] Profile:", outputStream.CodecParameters().Profile())
-		fmt.Println("[TESTDEBUG] Level:", outputStream.CodecParameters().Level())
 	}
 
 	h.outputFormatCtx.SetPb(avformat.AVIOOpenDynBuf())
@@ -222,28 +215,19 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, unit un
 	}
 
 	h.mu.Lock()
-	if setPkt.Flag() == 1 {
-		if trackCtx.setup {
-			now := time.Now()
-			if now.Sub(trackCtx.prevTime) > 2*time.Second {
-				trackCtx.prevTime = now
-				buf := avformat.AVIOCloseDynBuf(h.outputFormatCtx.Pb())
-				diff := setPkt.PTS() - trackCtx.prevPTS
-				trackCtx.prevPTS = setPkt.PTS()
-				fDuration := float64(diff) / float64(trackCtx.outputStream.TimeBase().Den())
-				filepath := fmt.Sprintf("output_%d.m4s", h.index)
-				h.endpoint.AppendMedia(buf, fmt.Sprintf("output_%d.m4s", h.index), fDuration)
-				log.Logger.Info("hls Handler write file end",
-					zap.String("filepath", filepath),
-					zap.Int("size", len(buf)))
-				h.index++
+	now := time.Now()
+	if now.Sub(trackCtx.prevTime) >= 1*time.Second {
+		trackCtx.prevTime = now
 
-				avioCtx := avformat.AVIOOpenDynBuf()
-				h.outputFormatCtx.SetPb(avioCtx)
-			}
-		} else {
-			trackCtx.setup = true
-		}
+		buf := avformat.AVIOCloseDynBuf(h.outputFormatCtx.Pb())
+		diff := setPkt.PTS() - trackCtx.prevPTS
+		trackCtx.prevPTS = setPkt.PTS()
+		fDuration := float64(diff) / float64(trackCtx.outputStream.TimeBase().Den())
+		h.endpoint.AppendMedia(buf, h.index, fDuration)
+		h.index++
+
+		avioCtx := avformat.AVIOOpenDynBuf()
+		h.outputFormatCtx.SetPb(avioCtx)
 	}
 
 	if h.outputFormatCtx.Pb() != nil {
@@ -269,21 +253,5 @@ func (h *Handler) OnAudio(ctx context.Context, trackCtx *OnTrackContext, unit un
 	}
 	h.mu.Unlock()
 	pkt.AvPacketUnref()
-	return nil
-}
-
-func writeFile(filepath string, reader io.Reader) error {
-	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
-	if err != nil {
-		return fmt.Errorf("error opening file: %w", err)
-	}
-	defer file.Close()
-	size, err := io.Copy(file, reader)
-	if err != nil {
-		return fmt.Errorf("error copying to file: %w", err)
-	}
-	log.Logger.Info("hls Handler write file end",
-		zap.String("filepath", filepath),
-		zap.Int("size", int(size)))
 	return nil
 }

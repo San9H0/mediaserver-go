@@ -6,10 +6,10 @@ go 1.22.5
 //replace github.com/yutopp/go-rtmp => ../go-rtmp
 
 require (
-	github.com/AlekSi/pointer v1.2.0
+	github.com/bluenviron/gohlslib v1.4.0
 	github.com/bluenviron/mediacommon v1.12.3
-	github.com/etherlabsio/go-m3u8 v1.0.0
 	github.com/google/uuid v1.6.0
+	github.com/grafov/m3u8 v0.12.0
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pion/ice/v2 v2.3.34
 	github.com/pion/rtcp v1.2.14
@@ -26,7 +26,6 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/grafov/m3u8 v0.12.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect

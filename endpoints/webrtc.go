@@ -35,6 +35,7 @@ func (w *WhipHandler) Handle(c echo.Context) error {
 	}
 
 	log.Logger.Debug("whip body",
+		zap.String("streamID", token),
 		zap.String("messageType", "request"),
 		zap.String("body", string(b)),
 	)
@@ -53,6 +54,7 @@ func (w *WhipHandler) Handle(c echo.Context) error {
 		return err
 	}
 	log.Logger.Debug("whip body",
+		zap.String("streamID", token),
 		zap.String("messageType", "response"),
 		zap.String("body", string(resp.Answer)),
 	)

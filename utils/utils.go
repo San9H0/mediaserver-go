@@ -34,3 +34,7 @@ func RandomUint32() uint32 {
 
 	return binary.BigEndian.Uint32(b[:])
 }
+
+func GetPointer[T any](v T) *T {
+	return &v
+}
