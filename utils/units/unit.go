@@ -2,7 +2,6 @@ package units
 
 import (
 	"fmt"
-	"github.com/pion/rtp"
 )
 
 type Unit struct {
@@ -11,8 +10,6 @@ type Unit struct {
 	DTS      int64
 	Duration int64
 	TimeBase int // audio: sampleRate, video: timebase
-
-	RTPPacket *rtp.Packet
 }
 
 func (u Unit) String() string {

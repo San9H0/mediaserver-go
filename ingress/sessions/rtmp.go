@@ -1,14 +1,40 @@
 package sessions
 
 import (
+	"bytes"
 	"fmt"
+	flvtag "github.com/yutopp/go-flv/tag"
 	"github.com/yutopp/go-rtmp"
 	"github.com/yutopp/go-rtmp/message"
+	"go.uber.org/zap"
 	"io"
+	"mediaserver-go/hubs"
+	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/parser/format"
+	"mediaserver-go/utils/log"
+	"mediaserver-go/utils/types"
+	"mediaserver-go/utils/units"
+	"sync"
 )
 
 type RTMPSession struct {
 	rtmp.DefaultHandler
+
+	once      sync.Once
+	streamKey string
+	hub       *hubs.Hub
+	stream    *hubs.Stream
+	extraData format.ExtraData
+
+	videoTrack    *hubs.Track
+	audioTrack    *hubs.Track
+	prevTimestamp uint32
+}
+
+func NewRTMPSession(hub *hubs.Hub) *RTMPSession {
+	return &RTMPSession{
+		hub: hub,
+	}
 }
 
 func (h *RTMPSession) OnServe(conn *rtmp.Conn) {
@@ -16,17 +42,23 @@ func (h *RTMPSession) OnServe(conn *rtmp.Conn) {
 }
 
 func (h *RTMPSession) OnConnect(timestamp uint32, cmd *message.NetConnectionConnect) error {
-	fmt.Println("OnConnect")
+	fmt.Printf("OnConnect cmd:%+v\n", *cmd)
 	return nil
 }
 
 func (h *RTMPSession) OnCreateStream(timestamp uint32, cmd *message.NetConnectionCreateStream) error {
-	fmt.Println("OnCreateStream")
+	fmt.Printf("OnCreateStream cmd:%+v\n", *cmd)
 	return nil
 }
 
 func (h *RTMPSession) OnReleaseStream(timestamp uint32, cmd *message.NetConnectionReleaseStream) error {
-	fmt.Println("OnCreateStream")
+	h.once.Do(func() {
+		h.streamKey = cmd.StreamName
+		h.stream = hubs.NewStream()
+		h.hub.AddStream(h.streamKey, h.stream)
+	})
+
+	log.Logger.Debug("OnReleaseStream", zap.Any("cmd", cmd))
 	return nil
 }
 
@@ -36,17 +68,29 @@ func (h *RTMPSession) OnDeleteStream(timestamp uint32, cmd *message.NetStreamDel
 }
 
 func (h *RTMPSession) OnPublish(_ *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPublish) error {
-	fmt.Println("OnPublish")
+	h.once.Do(func() {
+		h.streamKey = cmd.PublishingName
+		h.stream = hubs.NewStream()
+		h.hub.AddStream(h.streamKey, h.stream)
+	})
+
+	log.Logger.Debug("OnPublish", zap.Any("cmd", cmd))
 	return nil
 }
 
 func (h *RTMPSession) OnPlay(_ *rtmp.StreamContext, timestamp uint32, cmd *message.NetStreamPlay) error {
-	fmt.Println("OnPlay")
+	fmt.Printf("OnPlay cmd:%+v\n", *cmd)
 	return nil
 }
 
 func (h *RTMPSession) OnFCPublish(timestamp uint32, cmd *message.NetStreamFCPublish) error {
-	fmt.Println("OnFCPublish")
+	h.once.Do(func() {
+		h.streamKey = cmd.StreamName
+		h.stream = hubs.NewStream()
+		h.hub.AddStream(h.streamKey, h.stream)
+	})
+
+	log.Logger.Debug("OnFCPublish", zap.Any("cmd", cmd))
 	return nil
 }
 
@@ -56,17 +100,123 @@ func (h *RTMPSession) OnFCUnpublish(timestamp uint32, cmd *message.NetStreamFCUn
 }
 
 func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSetDataFrame) error {
-	fmt.Println("OnSetDataFrame")
+	r := bytes.NewReader(data.Payload)
+
+	var script flvtag.ScriptData
+	if err := flvtag.DecodeScriptData(r, &script); err != nil {
+		log.Logger.Error("Failed to decode script data",
+			zap.Error(err))
+		return nil // ignore
+	}
+
+	for _, amf := range script.Objects {
+		for key, v := range amf {
+			switch key {
+			case "videocodecid":
+				fv := v.(float64)
+				value := flvtag.CodecID(fv)
+				if value != flvtag.CodecIDAVC {
+					return fmt.Errorf("unsupported video codec: %v", v)
+				}
+				h.videoTrack = hubs.NewTrack(types.MediaTypeVideo, types.CodecTypeH264)
+				h.stream.AddTrack(h.videoTrack)
+			case "audiocodecid":
+				fv := v.(float64)
+				value := flvtag.SoundFormat(fv)
+				if value != flvtag.SoundFormatAAC {
+					return fmt.Errorf("unsupported audio codec: %v", v)
+				}
+				h.audioTrack = hubs.NewTrack(types.MediaTypeAudio, types.CodecTypeAAC)
+				h.stream.AddTrack(h.audioTrack)
+			}
+		}
+	}
+
+	log.Logger.Info("SetDataFrame", zap.Any("script", script))
+
 	return nil
 }
 
 func (h *RTMPSession) OnAudio(timestamp uint32, payload io.Reader) error {
-	fmt.Println("OnAudio")
+	var audio flvtag.AudioData
+	if err := flvtag.DecodeAudioData(payload, &audio); err != nil {
+		return err
+	}
+	data, err := io.ReadAll(audio.Data)
+	if err != nil {
+		return err
+	}
+	switch audio.AACPacketType {
+	case flvtag.AACPacketTypeSequenceHeader:
+		fmt.Printf("audio:%+v\n", audio)
+		fmt.Printf("data:%X\n", data)
+
+		if audio.SoundFormat != flvtag.SoundFormatAAC {
+			return fmt.Errorf("unsupported audio codec: %v", audio.SoundFormat)
+		}
+
+		config := format.AACConfig{}
+		if err := config.ParseAACAudioSpecificConfig(data); err != nil {
+			return err
+		}
+		codec := codecs.NewAAC(codecs.AACParameters{
+			SampleRate: config.SamplingRate,
+			Channels:   config.Channel,
+			SampleFmt:  8,
+		})
+		h.audioTrack.SetCodec(codec)
+	case flvtag.AACPacketTypeRaw:
+		duration := timestamp - h.prevTimestamp
+		h.prevTimestamp = timestamp
+		h.audioTrack.Write(units.Unit{
+			Payload:  data,
+			PTS:      int64(timestamp),
+			DTS:      int64(timestamp),
+			Duration: int64(duration),
+			TimeBase: 1000,
+		})
+	}
 	return nil
 }
 
 func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
-	fmt.Println("OnVideo")
+	var video flvtag.VideoData
+	if err := flvtag.DecodeVideoData(payload, &video); err != nil {
+		return err
+	}
+
+	body, err := io.ReadAll(video.Data)
+	if err != nil {
+		return err
+	}
+	switch video.AVCPacketType {
+	case flvtag.AVCPacketTypeSequenceHeader:
+		if video.CodecID != flvtag.CodecIDAVC {
+			return fmt.Errorf("unsupported video codec: %v", video.CodecID)
+		}
+		if err := h.extraData.Unmarshal(body); err != nil {
+			return err
+		}
+		h264Codecs, err := codecs.NewH264(h.extraData.SPS, h.extraData.PPS)
+		if err != nil {
+			return err
+		}
+		h.videoTrack.SetCodec(h264Codecs)
+	case flvtag.AVCPacketTypeNALU:
+		duration := timestamp - h.prevTimestamp
+		h.prevTimestamp = timestamp
+		for _, au := range format.GetAUFromAVC(body) {
+			h.videoTrack.Write(units.Unit{
+				Payload:  au,
+				PTS:      int64(timestamp),
+				DTS:      int64(timestamp),
+				Duration: int64(duration),
+				TimeBase: 1000,
+			})
+		}
+	case flvtag.AVCPacketTypeEOS:
+
+	}
 	return nil
 }
 
@@ -86,5 +236,8 @@ func (h *RTMPSession) OnUnknownDataMessage(timestamp uint32, data *message.DataM
 }
 
 func (h *RTMPSession) OnClose() {
-	fmt.Println("OnClose")
+	if h.streamKey == "" {
+		return
+	}
+	h.hub.RemoveStream(h.streamKey)
 }

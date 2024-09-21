@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mediaserver-go/egress/sessions/whep/playoutdelay"
 	"slices"
-	"sync/atomic"
 	"time"
 
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
@@ -31,7 +31,9 @@ type TrackContext struct {
 	sender      *pion.RTPSender
 	packetizer  rtp.Packetizer
 	buf         []byte
-	stats       Stats
+	stats       *Stats
+
+	getExtensions []func() (int, []byte, bool)
 }
 
 type Handler struct {
@@ -42,12 +44,15 @@ type Handler struct {
 	pc                *pion.PeerConnection
 	onConnectionState chan pion.PeerConnectionState
 	negotidated       []*hubs.Track
+
+	playoutDelayHandler *playoutdelay.Handler
 }
 
 func NewHandler(se pion.SettingEngine) *Handler {
 	return &Handler{
-		se:          se,
-		localTracks: make(map[*hubs.Track]*pion.TrackLocalStaticRTP),
+		se:                  se,
+		localTracks:         make(map[*hubs.Track]*pion.TrackLocalStaticRTP),
+		playoutDelayHandler: playoutdelay.NewHandler(),
 	}
 }
 
@@ -76,14 +81,15 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 			if err != nil {
 				return err
 			}
-
+			if err := me.RegisterHeaderExtension(pion.RTPHeaderExtensionCapability{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"}, pion.RTPCodecTypeVideo); err != nil {
+				return err
+			}
 			if err := me.RegisterCodec(pion.RTPCodecParameters{
 				RTPCodecCapability: webrtcCodecCapability,
 				PayloadType:        127,
 			}, pion.RTPCodecTypeVideo); err != nil {
 				return err
 			}
-
 			negotidated = append(negotidated, track)
 		case types.MediaTypeAudio:
 			audioCodec, err := track.AudioCodec()
@@ -126,12 +132,10 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 			if err != nil {
 				return err
 			}
-
 			trackID, err := uuid.NewRandom()
 			if err != nil {
 				return err
 			}
-
 			webrtcCodecCapability, err := videoCodec.WebRTCCodecCapability()
 			if err != nil {
 				return err
@@ -188,7 +192,10 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 		utils.SendOrDrop(onConnectionState, connectionState)
 	})
 	pc.OnTrack(func(remote *pion.TrackRemote, receiver *pion.RTPReceiver) {
-
+		fmt.Println("[TESTDEBUG] whep ontrack")
+		for _, rtpExt := range receiver.GetParameters().HeaderExtensions {
+			fmt.Println("rtpExt:", rtpExt.ID, ", uri:", rtpExt.URI)
+		}
 	})
 
 	sd, err := pc.CreateAnswer(&pion.AnswerOptions{})
@@ -219,6 +226,8 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	if !ok {
 		return nil, errors.New("handl not found")
 	}
+
+	stats := NewStats()
 	index := slices.Index(h.negotidated, track)
 	sender := h.pc.GetTransceivers()[index].Sender()
 	go func() {
@@ -227,7 +236,7 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 		}
 	}()
 	go func() {
-		if err := h.handleSendSenderReport(ctx, sender); err != nil {
+		if err := h.handleSendSenderReport(ctx, sender, stats); err != nil {
 			log.Logger.Error("failed to handl send sender report", zap.Error(err))
 		}
 	}()
@@ -248,12 +257,23 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 		return nil, errors.New("unknown codec type")
 	}
 
+	var getExtensions []func() (int, []byte, bool)
+	for _, ext := range sender.GetParameters().HeaderExtensions {
+		switch ext.URI {
+		case "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay":
+			h.playoutDelayHandler.SetUse(ext.ID, true)
+			getExtensions = append(getExtensions, h.playoutDelayHandler.GetPayload)
+		}
+	}
+
 	return &TrackContext{
-		sourceTrack: track,
-		localTrack:  localTrack,
-		sender:      sender,
-		packetizer:  packetizer,
-		buf:         make([]byte, types.ReadBufferSize),
+		sourceTrack:   track,
+		localTrack:    localTrack,
+		sender:        sender,
+		packetizer:    packetizer,
+		buf:           make([]byte, types.ReadBufferSize),
+		getExtensions: getExtensions,
+		stats:         stats,
 	}, nil
 }
 
@@ -271,6 +291,14 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 		}
 	}
 	for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) { //todo 추상화 필요. h264로 가정함.
+		for _, getExt := range trackCtx.getExtensions {
+			id, payload, ok := getExt()
+			if !ok {
+				continue
+			}
+			rtpPacket.Header.SetExtension(uint8(id), payload)
+		}
+
 		n, err := rtpPacket.MarshalTo(buf)
 		if err != nil {
 			fmt.Println("marshal rtp err:", err)
@@ -278,10 +306,11 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 		}
 
 		if _, err := localTrack.Write(buf[:n]); err != nil {
-			fmt.Println("write rtp err:", err)
+			return err
 		}
 		trackCtx.stats.sendCount.Add(1)
 		trackCtx.stats.sendLength.Add(uint32(n))
+		trackCtx.stats.lastNTP.Store(uint64(ntp.GetNTPTime(time.Now())))
 		trackCtx.stats.lastTS.Store(rtpPacket.Timestamp)
 	}
 
@@ -300,10 +329,11 @@ func (h *Handler) OnAudio(ctx context.Context, trackCtx *TrackContext, unit unit
 		}
 
 		if _, err := localTrack.Write(buf[:n]); err != nil {
-			fmt.Println("write rtp err:", err)
+			return err
 		}
 		trackCtx.stats.sendCount.Add(1)
 		trackCtx.stats.sendLength.Add(uint32(n))
+		trackCtx.stats.lastNTP.Store(uint64(ntp.GetNTPTime(time.Now())))
 		trackCtx.stats.lastTS.Store(rtpPacket.Timestamp)
 	}
 	return nil
@@ -328,11 +358,7 @@ func (h *Handler) HandlerRTCP(ctx context.Context, sender *pion.RTPSender) error
 	}
 }
 
-func (h *Handler) handleSendSenderReport(ctx context.Context, sender *pion.RTPSender) error {
-	var lastTS atomic.Uint32
-	var sendCount atomic.Uint32
-	var sendLength atomic.Uint32
-
+func (h *Handler) handleSendSenderReport(ctx context.Context, sender *pion.RTPSender, stats *Stats) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
 		select {
@@ -341,10 +367,10 @@ func (h *Handler) handleSendSenderReport(ctx context.Context, sender *pion.RTPSe
 		case <-ticker.C:
 			sr := rtcp.SenderReport{
 				SSRC:        uint32(sender.GetParameters().Encodings[0].SSRC),
-				NTPTime:     uint64(ntp.GetNTPTime(time.Now())),
-				RTPTime:     lastTS.Load(),
-				PacketCount: sendCount.Load(),
-				OctetCount:  sendLength.Load(),
+				NTPTime:     stats.lastNTP.Load(),
+				RTPTime:     stats.lastTS.Load(),
+				PacketCount: stats.sendCount.Load(),
+				OctetCount:  stats.sendLength.Load(),
 			}
 			if err := h.pc.WriteRTCP([]rtcp.Packet{&sr}); err != nil {
 				log.Logger.Warn("write rtcp err", zap.Error(err))

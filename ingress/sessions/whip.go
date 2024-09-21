@@ -124,21 +124,21 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 
 			stats := NewStats(mediaType, onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
 
-			target := hubs.NewTrack(mediaType, codecType)
-			w.stream.AddTrack(target)
+			hubTrack := hubs.NewTrack(mediaType, codecType)
+			w.stream.AddTrack(hubTrack)
 			if onTrack.remote.Kind() == pion.RTPCodecTypeVideo {
 				once.Do(func() {
 					go w.sendPLI(ctx, stats)
 				})
 			} else {
-				target.SetCodec(codecs.NewOpus(codecs.OpusParameters{
+				hubTrack.SetCodec(codecs.NewOpus(codecs.OpusParameters{
 					SampleRate: int(onTrack.remote.Codec().ClockRate),
 					Channels:   int(onTrack.remote.Codec().Channels),
 					SampleFmt:  int(avutil.AV_SAMPLE_FMT_S16),
 				}))
 			}
 			go w.sendReceiverReport(ctx, stats)
-			go w.readRTP(onTrack.remote, target, stats)
+			go w.readRTP(onTrack.remote, hubTrack, stats)
 			go w.readRTCP(onTrack.receiver, stats)
 		case connectionState := <-w.onConnectionState:
 			fmt.Println("conn:", connectionState.String())
@@ -151,7 +151,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 	}
 }
 
-func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stats *Stats) error {
+func (w *WHIPSession) readRTP(remote *pion.TrackRemote, hubTrack *hubs.Track, stats *Stats) error {
 	startTS := uint32(0)
 	prevTS := uint32(0)
 	duration := 0
@@ -193,7 +193,7 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 			if codec == nil {
 				continue
 			} else if videoCodec != codec {
-				target.SetCodec(codec)
+				hubTrack.SetCodec(codec)
 				h264codec, ok := codec.(*codecs.H264)
 				if !ok {
 					log.Logger.Error("codec is not h264")
@@ -207,7 +207,7 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 			}
 
 			for _, unit := range aus {
-				target.Write(units.Unit{
+				hubTrack.Write(units.Unit{
 					Payload:  unit,
 					PTS:      int64(pts),
 					DTS:      int64(pts),
@@ -223,12 +223,12 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 			if codec == nil {
 				continue
 			} else if videoCodec != codec {
-				target.SetCodec(codec)
+				hubTrack.SetCodec(codec)
 				videoCodec = codec
 			}
 
 			for _, unit := range aus {
-				target.Write(units.Unit{
+				hubTrack.Write(units.Unit{
 					Payload:  unit,
 					PTS:      int64(pts),
 					DTS:      int64(pts),
@@ -238,7 +238,7 @@ func (w *WHIPSession) readRTP(remote *pion.TrackRemote, target *hubs.Track, stat
 			}
 		}
 		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeOpus {
-			target.Write(units.Unit{
+			hubTrack.Write(units.Unit{
 				Payload:  rtpPacket.Payload,
 				PTS:      int64(pts),
 				DTS:      int64(pts),

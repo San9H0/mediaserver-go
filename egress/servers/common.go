@@ -2,7 +2,6 @@ package servers
 
 import (
 	"errors"
-	"fmt"
 	"mediaserver-go/hubs"
 	"mediaserver-go/utils/types"
 )
@@ -12,7 +11,6 @@ func filterMediaTypesInStream(stream *hubs.Stream, mediaTypes []types.MediaType)
 	tracksMap := stream.TracksMap()
 	for _, requestMediaType := range mediaTypes {
 		track, ok := tracksMap[requestMediaType]
-		fmt.Println("[TESTDEBUG] tracksMap:", tracksMap, ", requestMediaType:", requestMediaType, ", track:", track, ", ok:", ok)
 		if !ok {
 			continue
 		}

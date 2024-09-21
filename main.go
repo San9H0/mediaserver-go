@@ -71,6 +71,11 @@ func main() {
 		panic(err)
 	}
 
+	imageServer, err := egress.NewImageServer(hub)
+	if err != nil {
+		panic(err)
+	}
+
 	go func() {
 		rtmpServer, err := ingress.NewRTMPServer(hub)
 		_ = rtmpServer
@@ -79,7 +84,7 @@ func main() {
 		}
 
 	}()
-	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &efs, &ingressRTPServer, &egressRTPServer, &hlsServer)
+	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &efs, &ingressRTPServer, &egressRTPServer, &hlsServer, &imageServer)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

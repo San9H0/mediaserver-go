@@ -337,11 +337,11 @@ func (h *HLSHandler) appendMediallhls(payload []byte, index, segIndex, partIndex
 		close(media1.closeCh)
 	}
 
-	log.Logger.Info("hls Handler write file end",
-		zap.Int("index", index),
-		zap.Int("segIndex", segIndex),
-		zap.Int("partIndex", partIndex),
-		zap.Int("size", len(payload)))
+	//log.Logger.Info("hls Handler write file end",
+	//	zap.Int("index", index),
+	//	zap.Int("segIndex", segIndex),
+	//	zap.Int("partIndex", partIndex),
+	//	zap.Int("size", len(payload)))
 
 	return deleted
 }

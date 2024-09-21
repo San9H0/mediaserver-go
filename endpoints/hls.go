@@ -27,6 +27,7 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid parameters")
 		}
 		handle, err := h.hlsServer.GetHLSStream(streamID)
+		fmt.Println("err:", err)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, err)
 		}
@@ -39,12 +40,10 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			return c.Blob(http.StatusOK, "application/vnd.apple.mpegurl", b)
 		case "video.m3u8":
 			medisSN, part := c.QueryParam("_HLS_msn"), c.QueryParam("_HLS_part")
-			fmt.Println("[TESTDEBUG] GET video.m3u8... msn:", medisSN, "part:", part)
 			b, err := handle.GetMediaM3U8LLHLS(medisSN, part)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			fmt.Println("video.m3u8:", string(b))
 			return c.Blob(http.StatusOK, "application/vnd.apple.mpegurl", b)
 		case "init.mp4":
 			b, err := handle.GetPayload(target)
@@ -53,7 +52,6 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			}
 			return c.Blob(http.StatusOK, "video/mp4", b)
 		default:
-			fmt.Println("target:", target)
 			b, err := handle.GetPayload(target)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
@@ -82,7 +80,6 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			fmt.Println("hls video.m3u8:", string(b))
 			return c.Blob(http.StatusOK, "application/vnd.apple.mpegurl", b)
 		case "init.mp4":
 			b, err := handle.GetPayload(target)
@@ -91,7 +88,6 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			}
 			return c.Blob(http.StatusOK, "video/mp4", b)
 		default:
-			fmt.Println("target:", target)
 			b, err := handle.GetPayload(target)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)

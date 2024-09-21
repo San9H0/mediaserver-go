@@ -30,7 +30,7 @@ func NewRTMPServer(hub *hubs.Hub) (RTMPServer, error) {
 		OnConnect: func(conn net.Conn) (io.ReadWriteCloser, *rtmp.ConnConfig) {
 			log.Logger.Info("new rtmp server onConnect")
 			return conn, &rtmp.ConnConfig{
-				Handler: &sessions.RTMPSession{},
+				Handler: sessions.NewRTMPSession(hub),
 			}
 		},
 	})

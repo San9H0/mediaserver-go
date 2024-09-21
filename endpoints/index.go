@@ -51,6 +51,7 @@ func Initialize(
 	ingressRTPServer IngressRTPServer,
 	egressRTPServer EgressRTPServer,
 	hlsServer HLSServer,
+	imageServer ImageServer,
 ) *echo.Echo {
 	// Create a new Echo instance
 	e := echo.New()
@@ -81,11 +82,15 @@ func Initialize(
 	egressFileHandler := NewEgressFileHandler(egressFileServer)
 	egressRTPHandler := NewEgressRTPHandler(egressRTPServer)
 	hlsHandler := NewHLSHandler(hlsServer)
+
 	e.POST("/v1/whep", whepHandler.Handle)
 	e.POST("/v1/egress/files", egressFileHandler.Handle)
 	e.POST("/v1/egress/rtp", egressRTPHandler.HandleEgress)
 
 	hlsHandler.Register(e)
+
+	imageHandler := NewImagesHandler(imageServer)
+	imageHandler.Register(e)
 
 	return e
 }

@@ -1,6 +1,8 @@
 package hubs
 
 import (
+	"go.uber.org/zap"
+	"mediaserver-go/utils/log"
 	"sync"
 )
 
@@ -21,6 +23,7 @@ func (h *Hub) AddStream(id string, stream *Stream) {
 	defer h.mu.Unlock()
 
 	h.streams[id] = stream
+	log.Logger.Info("stream added", zap.String("streamkey", id))
 }
 
 func (h *Hub) RemoveStream(id string) {
@@ -28,6 +31,7 @@ func (h *Hub) RemoveStream(id string) {
 	defer h.mu.Unlock()
 
 	delete(h.streams, id)
+	log.Logger.Info("stream deleted", zap.String("streamkey", id))
 }
 
 func (h *Hub) GetStream(id string) (*Stream, bool) {

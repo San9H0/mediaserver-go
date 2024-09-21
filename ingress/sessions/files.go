@@ -43,11 +43,13 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 	if ret := inputFormatCtx.AvformatFindStreamInfo(nil); ret < 0 {
 		return FileSession{}, errors.New("avformat find stream info failed")
 	}
+	fmt.Println("inputFormatCtx.NbStreams():", inputFormatCtx.NbStreams())
 	tracks := make(map[int]types.Track)
 	for i := 0; i < int(inputFormatCtx.NbStreams()); i++ {
 		inputStream := inputFormatCtx.Streams()[i]
 		codecType := types.CodecTypeFromFFMPEG(inputStream.CodecParameters().CodecID())
 		mediaType := types.MediaTypeFromFFMPEG(inputStream.CodecParameters().CodecType())
+		fmt.Println("codecType:", codecType, ", mediaType:", mediaType)
 		if !slices.Contains(mediaTypes, mediaType) {
 			continue
 		}
@@ -64,7 +66,7 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		tracks[i] = types.NewTrack(mediaType, codecType)
 	}
 	if audioIndex == -1 && videoIndex == -1 {
-		return FileSession{}, errors.New("no target")
+		return FileSession{}, fmt.Errorf("no audio or video stream found audioIndex:%d, videoIndex:%d", audioIndex, videoIndex)
 	}
 
 	fmt.Println("[TESTDEBUG] videoTrack != nil:", videoTrack != nil)
@@ -89,6 +91,7 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		inputStream := inputFormatCtx.Streams()[audioIndex]
 		inputCodecpar := inputStream.CodecParameters()
 
+		fmt.Println("[TESTDEBUG] aac sampleRate:", inputCodecpar.SampleRate(), ", channels:", inputCodecpar.Channels(), ", sampleFmt:", inputCodecpar.Format())
 		audioTrack.SetCodec(codecs.NewAAC(codecs.AACParameters{
 			SampleRate: inputCodecpar.SampleRate(),
 			Channels:   inputCodecpar.Channels(),

@@ -7,6 +7,7 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
 	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/parser/format"
 	"sync"
 )
 
@@ -71,9 +72,10 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 
 	switch {
 	case 1 <= naluType && naluType <= 23:
-		switch naluType {
-		case h264.NALUTypeSEI, h264.NALUTypeFillerData, h264.NALUTypeAccessUnitDelimiter:
+		if format.DropNalUnit(naluType) {
 			return nil
+		}
+		switch naluType {
 		case h264.NALUTypeSPS, h264.NALUTypePPS:
 			h.setSPSPPS(h.extractSPSPPS(payload))
 			fallthrough
@@ -93,11 +95,13 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 				return nil
 			}
 
-			b := make([]byte, len(payload[currOffset:currOffset+naluSize]))
-			copy(b, payload[currOffset:currOffset+naluSize])
-			aus = append(aus, b)
-
+			au := make([]byte, len(payload[currOffset:currOffset+naluSize]))
+			copy(au, payload[currOffset:currOffset+naluSize])
 			currOffset += naluSize
+			if format.DropNalUnit(h264.NALUType(au[0] & 0x1F)) {
+				continue
+			}
+			aus = append(aus, au)
 		}
 		for _, au := range aus {
 			sps, pps := h.extractSPSPPS(au)
@@ -128,6 +132,9 @@ func (h *H264Parser) Parse(rtpPacket *rtp.Packet) [][]byte {
 		}
 		h.fragments = append(h.fragments, payload[fragmentHeaderIdx+1:]...)
 		if e != 0 {
+			if format.DropNalUnit(h264.NALUType(h.fragments[0] & 0x1F)) {
+				return nil
+			}
 			if fragmentNALU == h264.NALUTypeSPS || fragmentNALU == h264.NALUTypePPS {
 				h.setSPSPPS(h.extractSPSPPS(payload))
 			}
