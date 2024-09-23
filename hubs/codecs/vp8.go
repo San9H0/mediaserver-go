@@ -23,6 +23,27 @@ func NewVP8(width, height int) (*VP8, error) {
 	}, nil
 }
 
+func (v *VP8) Equals(codec Codec) bool {
+	if codec == nil {
+		return false
+	}
+	vp8Codec, ok := codec.(*VP8)
+	if !ok {
+		return false
+	}
+	if v.CodecType() != vp8Codec.CodecType() || v.MediaType() != vp8Codec.MediaType() {
+		return false
+	}
+	if v.Width() != vp8Codec.Width() || v.Height() != vp8Codec.Height() {
+		return false
+	}
+	return true
+}
+
+func (v *VP8) String() string {
+	return fmt.Sprintf("VP8. Width: %d, Height: %d", v.width, v.height)
+}
+
 func (v *VP8) MediaType() types.MediaType {
 	return types.MediaTypeVideo
 }

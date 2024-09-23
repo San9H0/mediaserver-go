@@ -33,6 +33,28 @@ func NewOpus(o OpusParameters) *Opus {
 	}
 }
 
+func (o *Opus) Equals(codec Codec) bool {
+	if codec == nil {
+		return false
+	}
+	opusCodec, ok := codec.(*Opus)
+	if !ok {
+		return false
+	}
+	if o.CodecType() != opusCodec.CodecType() || o.MediaType() != opusCodec.MediaType() {
+		return false
+	}
+
+	if o.Channels() != opusCodec.Channels() || o.SampleFormat() != opusCodec.SampleFormat() || o.SampleRate() != opusCodec.SampleRate() {
+		return false
+	}
+	return true
+}
+
+func (o *Opus) String() string {
+	return fmt.Sprintf("Opus. SampleRate: %d, Channels: %d, SampleFmt: %d", o.sampleRate, o.channels, o.sampleFmt)
+}
+
 func (o *Opus) CodecType() types.CodecType {
 	return types.CodecTypeOpus
 }
@@ -54,11 +76,15 @@ func (o *Opus) SampleRate() int {
 }
 
 func (o *Opus) SetCodecContext(codecCtx *avcodec.CodecContext) {
-	codecCtx.SetCodecID(types.CodecIDFromType(o.CodecType()))
-	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(o.MediaType()))
-	codecCtx.SetSampleRate(o.SampleRate())
-	avutil.AvChannelLayoutDefault(codecCtx.ChLayout(), o.Channels())
-	codecCtx.SetSampleFmt(avcodec.AvSampleFormat(o.SampleFormat()))
+	codecCtx.SetCodecID(types.CodecIDFromType(types.CodecTypeOpus))
+	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(types.MediaTypeAudio))
+	codecCtx.SetSampleRate(o.sampleRate)
+	avutil.AvChannelLayoutDefault(codecCtx.ChLayout(), o.channels)
+	codecCtx.SetSampleFmt(avutil.AvSampleFormat(o.sampleFmt))
+}
+
+func (o *Opus) AvCodecFifoAlloc() *avutil.AvAudioFifo {
+	return avutil.AvAudioFifoAlloc(avutil.AvSampleFormat(o.sampleFmt), o.channels, o.sampleRate)
 }
 
 func (o *Opus) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {

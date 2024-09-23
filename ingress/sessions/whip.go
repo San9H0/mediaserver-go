@@ -3,24 +3,21 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"mediaserver-go/ingress/sessions/rtpinbounder"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pion/rtcp"
-	"github.com/pion/rtp"
 	pion "github.com/pion/webrtc/v3"
 	"go.uber.org/zap"
 	_ "golang.org/x/image/vp8"
 
-	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/hubs/parsers"
+	parsers2 "mediaserver-go/parsers"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
-	"mediaserver-go/utils/units"
 )
 
 type WHIPSession struct {
@@ -122,23 +119,32 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 			mediaType := types.MediaTypeFromPion(onTrack.remote.Kind())
 			codecType := types.CodecTypeFromMimeType(onTrack.remote.Codec().MimeType)
 
-			stats := NewStats(mediaType, onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
+			stats := rtpinbounder.NewStats(mediaType, onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
+			codecConfig, err := codecs.NewCodecConfig(codecType)
+			if err != nil {
+				return err
+			}
 
-			hubTrack := hubs.NewTrack(mediaType, codecType)
-			w.stream.AddTrack(hubTrack)
+			hubSource := hubs.NewHubSource(mediaType, codecType)
+			w.stream.AddSource(hubSource)
+
+			parser, err := parsers2.NewRTPParser(codecConfig, func(codec codecs.Codec) {
+				hubSource.SetCodec(codec)
+			})
+			if err != nil {
+				return err
+			}
+			inbounder := rtpinbounder.NewInbounder(parser, int(onTrack.remote.Codec().ClockRate), func(buf []byte) (int, error) {
+				n, _, err := onTrack.remote.Read(buf)
+				return n, err
+			})
+			go inbounder.Run(ctx, hubSource, stats)
 			if onTrack.remote.Kind() == pion.RTPCodecTypeVideo {
 				once.Do(func() {
 					go w.sendPLI(ctx, stats)
 				})
-			} else {
-				hubTrack.SetCodec(codecs.NewOpus(codecs.OpusParameters{
-					SampleRate: int(onTrack.remote.Codec().ClockRate),
-					Channels:   int(onTrack.remote.Codec().Channels),
-					SampleFmt:  int(avutil.AV_SAMPLE_FMT_S16),
-				}))
 			}
 			go w.sendReceiverReport(ctx, stats)
-			go w.readRTP(onTrack.remote, hubTrack, stats)
 			go w.readRTCP(onTrack.receiver, stats)
 		case connectionState := <-w.onConnectionState:
 			fmt.Println("conn:", connectionState.String())
@@ -151,106 +157,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 	}
 }
 
-func (w *WHIPSession) readRTP(remote *pion.TrackRemote, hubTrack *hubs.Track, stats *Stats) error {
-	startTS := uint32(0)
-	prevTS := uint32(0)
-	duration := 0
-	h264Parser := parsers.NewH264Parser()
-	vp8Parser := parsers.NewVP8Parser()
-	var videoCodec codecs.Codec
-	for {
-		buf := make([]byte, types.ReadBufferSize)
-		n, _, err := remote.Read(buf)
-		if err != nil {
-			fmt.Println("read rtp err:", err)
-			return err
-		}
-		rtpPacket := &rtp.Packet{}
-		if err := rtpPacket.Unmarshal(buf[:n]); err != nil {
-			fmt.Println("unmarshal rtp err:", err)
-			continue
-		}
-
-		if startTS == 0 {
-			startTS = rtpPacket.Timestamp
-		}
-		pts := rtpPacket.Timestamp - startTS
-
-		if rtpPacket.Timestamp != prevTS {
-			if prevTS == 0 {
-				duration = 0
-			} else {
-				duration = int(rtpPacket.Timestamp - prevTS)
-			}
-		}
-
-		stats.CalcRTPStats(rtpPacket, n)
-
-		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeH264 {
-			aus := h264Parser.Parse(rtpPacket)
-			var codec codecs.Codec
-			codec = h264Parser.GetCodec()
-			if codec == nil {
-				continue
-			} else if videoCodec != codec {
-				hubTrack.SetCodec(codec)
-				h264codec, ok := codec.(*codecs.H264)
-				if !ok {
-					log.Logger.Error("codec is not h264")
-					continue
-				}
-				fmt.Printf("profile:%02X, %d, ", h264codec.ExtraData()[1], h264codec.ExtraData()[1])
-				fmt.Printf("constraint:%02X, %d, ", h264codec.ExtraData()[2], h264codec.ExtraData()[2])
-				fmt.Printf("level:%02X, %d\n", h264codec.ExtraData()[3], h264codec.ExtraData()[3])
-
-				videoCodec = codec
-			}
-
-			for _, unit := range aus {
-				hubTrack.Write(units.Unit{
-					Payload:  unit,
-					PTS:      int64(pts),
-					DTS:      int64(pts),
-					Duration: int64(duration),
-					TimeBase: int(remote.Codec().ClockRate),
-				})
-			}
-		}
-		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeVP8 {
-			aus := vp8Parser.Parse(rtpPacket)
-			var codec codecs.Codec
-			codec = vp8Parser.GetCodec()
-			if codec == nil {
-				continue
-			} else if videoCodec != codec {
-				hubTrack.SetCodec(codec)
-				videoCodec = codec
-			}
-
-			for _, unit := range aus {
-				hubTrack.Write(units.Unit{
-					Payload:  unit,
-					PTS:      int64(pts),
-					DTS:      int64(pts),
-					Duration: int64(duration),
-					TimeBase: int(remote.Codec().ClockRate),
-				})
-			}
-		}
-		if types.CodecTypeFromMimeType(remote.Codec().MimeType) == types.CodecTypeOpus {
-			hubTrack.Write(units.Unit{
-				Payload:  rtpPacket.Payload,
-				PTS:      int64(pts),
-				DTS:      int64(pts),
-				Duration: int64(duration),
-				TimeBase: int(remote.Codec().ClockRate),
-			})
-		}
-		prevTS = rtpPacket.Timestamp
-	}
-}
-
-func (w *WHIPSession) readRTCP(receiver *pion.RTPReceiver, stats *Stats) error {
+func (w *WHIPSession) readRTCP(receiver *pion.RTPReceiver, stats *rtpinbounder.Stats) error {
 	for {
 		rtcpPackets, _, err := receiver.ReadRTCP()
 		if err != nil {
@@ -266,7 +173,7 @@ func (w *WHIPSession) readRTCP(receiver *pion.RTPReceiver, stats *Stats) error {
 	}
 }
 
-func (w *WHIPSession) sendReceiverReport(ctx context.Context, stats *Stats) {
+func (w *WHIPSession) sendReceiverReport(ctx context.Context, stats *rtpinbounder.Stats) {
 	ticker := time.NewTicker(1000 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -276,12 +183,12 @@ func (w *WHIPSession) sendReceiverReport(ctx context.Context, stats *Stats) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			totalBytes := stats.getTotalBytes()
+			totalBytes := stats.GetTotalBytes()
 			bps := 8 * (totalBytes - prevBytes)
 			prevBytes = totalBytes
 			_ = bps
 
-			if err := w.pc.WriteRTCP([]rtcp.Packet{stats.getReceiverReport(), stats.getRemB()}); err != nil {
+			if err := w.pc.WriteRTCP([]rtcp.Packet{stats.GetReceiverReport(), stats.GetRemB()}); err != nil {
 				log.Logger.Warn("write rtcp err", zap.Error(err))
 				return
 			}
@@ -289,7 +196,7 @@ func (w *WHIPSession) sendReceiverReport(ctx context.Context, stats *Stats) {
 	}
 }
 
-func (w *WHIPSession) sendPLI(ctx context.Context, stats *Stats) {
+func (w *WHIPSession) sendPLI(ctx context.Context, stats *rtpinbounder.Stats) {
 	ticker := time.NewTicker(1000 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -299,145 +206,12 @@ func (w *WHIPSession) sendPLI(ctx context.Context, stats *Stats) {
 		case <-ticker.C:
 			if err := w.pc.WriteRTCP([]rtcp.Packet{
 				&rtcp.PictureLossIndication{
-					SenderSSRC: 0, MediaSSRC: stats.ssrc,
+					SenderSSRC: 0, MediaSSRC: stats.SSRC,
 				},
 			}); err != nil {
 				log.Logger.Warn("write rtcp err", zap.Error(err))
 				return
 			}
 		}
-	}
-}
-
-const maxSN = 1 << 16
-
-type Stats struct {
-	mu sync.RWMutex
-
-	mediaType types.MediaType
-	clockRate uint32
-	ssrc      uint32
-
-	// for stats
-	totalBytes  uint32
-	packetCount uint32
-	packetLost  uint32
-	maxSeqNo    uint16
-	baseSeqNo   uint16
-	cycle       uint32
-
-	// for receiver report
-	prevExpect     atomic.Uint32
-	prevPacketLost atomic.Uint32
-	lastSRRTPTime  atomic.Uint32
-	lastSRNTPTime  atomic.Uint64
-	lastSRTime     atomic.Int64
-	jitter         float64
-	lastTransit    uint32
-}
-
-func NewStats(mediaType types.MediaType, clockRate, ssrc uint32) *Stats {
-	return &Stats{
-		mediaType: mediaType,
-		clockRate: clockRate,
-		ssrc:      ssrc,
-	}
-}
-
-func (s *Stats) CalcRTPStats(pkt *rtp.Packet, n int) {
-	arrivalTime := time.Now().UnixNano()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sn := pkt.SequenceNumber
-	if s.packetCount == 0 {
-		s.baseSeqNo = sn
-		s.maxSeqNo = sn
-	} else if (sn-s.maxSeqNo)&0x8000 == 0 {
-		if sn < s.maxSeqNo {
-			s.cycle += maxSN
-		}
-		s.maxSeqNo = sn
-	} else if (sn-s.maxSeqNo)&0x8000 > 0 {
-		// 재전송필요
-	}
-	s.packetCount++
-	s.totalBytes += uint32(n)
-
-	arrival := uint32(arrivalTime / 1e6 * int64(s.clockRate/1e3))
-	transit := arrival - pkt.Timestamp
-	if s.lastTransit != 0 {
-		d := int32(transit - s.lastTransit)
-		if d < 0 {
-			d = -d
-		}
-		s.jitter += (float64(d) - s.jitter) / 16
-	}
-	s.lastTransit = transit
-}
-
-func (s *Stats) UpdateSR(rtcpPacket *rtcp.SenderReport) {
-	s.lastSRRTPTime.Store(rtcpPacket.RTPTime)
-	s.lastSRNTPTime.Store(rtcpPacket.NTPTime)
-	s.lastSRTime.Store(time.Now().UnixNano())
-}
-
-func (s *Stats) extMaxSeqNo() uint32 {
-	return s.cycle | uint32(s.maxSeqNo)
-}
-
-func (s *Stats) getTotalBytes() uint32 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.totalBytes
-}
-
-func (s *Stats) getReceiverReport() *rtcp.ReceiverReport {
-	s.mu.RLock()
-	ssrc := s.ssrc
-	jitter := s.jitter
-	maxSeqNo := s.maxSeqNo
-	packetExpect := s.extMaxSeqNo() - uint32(s.baseSeqNo) + 1
-	packetLost := packetExpect - s.packetCount
-	s.mu.RUnlock()
-
-	expectedInterval := packetExpect - s.prevExpect.Load()
-	lostInterval := packetLost - s.prevPacketLost.Load()
-	lostRate := float32(lostInterval) / float32(expectedInterval)
-	fractionLost := uint8(lostRate * 256.0)
-	lastSenderReport := uint32(s.lastSRNTPTime.Load() >> 16)
-
-	var dlsr uint32
-	lastSRtime := s.lastSRTime.Load()
-	if lastSRtime != 0 {
-		delayMS := uint32((time.Now().Nanosecond() - int(lastSRtime)) / 1e6)
-		dlsr = (delayMS / 1e3) << 16
-		dlsr |= (delayMS % 1e3) * 65536 / 1000
-	}
-
-	s.prevExpect.Store(packetExpect)
-	s.prevPacketLost.Store(packetLost)
-
-	return &rtcp.ReceiverReport{
-		SSRC: ssrc,
-		Reports: []rtcp.ReceptionReport{
-			{
-				SSRC:               ssrc,
-				FractionLost:       fractionLost,
-				TotalLost:          packetLost,
-				LastSequenceNumber: uint32(maxSeqNo),
-				Jitter:             uint32(jitter),
-				LastSenderReport:   lastSenderReport,
-				Delay:              dlsr,
-			},
-		},
-	}
-}
-
-func (s *Stats) getRemB() *rtcp.ReceiverEstimatedMaximumBitrate {
-	return &rtcp.ReceiverEstimatedMaximumBitrate{
-		Bitrate: float32(3_000_000),
-		SSRCs:   []uint32{s.ssrc},
 	}
 }

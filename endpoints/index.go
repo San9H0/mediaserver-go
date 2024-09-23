@@ -57,7 +57,6 @@ func Initialize(
 	e := echo.New()
 
 	e.HTTPErrorHandler = func(err error, c echo.Context) {
-
 		log.Logger.Warn("http error",
 			zap.String("request_url", c.Request().URL.String()),
 			zap.Error(err),
@@ -86,7 +85,6 @@ func Initialize(
 	e.POST("/v1/whep", whepHandler.Handle)
 	e.POST("/v1/egress/files", egressFileHandler.Handle)
 	e.POST("/v1/egress/rtp", egressRTPHandler.HandleEgress)
-
 	hlsHandler.Register(e)
 
 	imageHandler := NewImagesHandler(imageServer)

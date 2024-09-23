@@ -48,7 +48,7 @@ curl -X POST http://127.0.0.1:8080/v1/ingress/files -H "Authorization: Bearer st
 curl -X POST http://127.0.0.1:8080/v1/ingress/rtp -H "Authorization: Bearer streamkey" -H "Content-Type: application/json" -d '{"addr":"127.0.0.1", "port":5000, "payloadType":127, "codecType":"h264"}'
 ffmpeg -re -i ./test.mp4 -an -c:v libx264 -x264opts bframes=0 -x264-params keyint=30 -bsf:v h264_mp4toannexb -payload_type 127 -f rtp rtp://127.0.0.1:5000
 curl -X POST http://127.0.0.1:8080/v1/ingress/rtp -H "Authorization: Bearer streamkey" -H "Content-Type: application/json" -d '{"addr":"127.0.0.1", "port":5003, "payloadType":96, "codecType":"opus"}'
-ffmpeg -re -i ./test.webm -an -c:a copy -payload_type 96 -f rtp rtp://127.0.0.1:5003
+ffmpeg -re -i ./test.webm -vn -c:a copy -payload_type 96 -f rtp rtp://127.0.0.1:5003
 
 ## egress
 ### rtp

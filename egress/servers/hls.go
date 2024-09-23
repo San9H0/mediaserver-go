@@ -36,6 +36,7 @@ func NewHLSServer(hub *hubs.Hub) (HLSServer, error) {
 
 func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSResponse, error) {
 	stream, ok := h.hub.GetStream(streamID)
+	fmt.Println("[TESTDEBUG] StartSession.. ok:", ok, " streamID:", streamID)
 	if !ok {
 		return dto.HLSResponse{}, errors.New("stream not found")
 	}
@@ -43,7 +44,7 @@ func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSRe
 	hlsStream := newHLSStream()
 
 	handler := hls.NewHandler(buffers.NewMemory(), hlsStream)
-	if err := handler.Init(context.Background(), stream.Tracks()); err != nil {
+	if err := handler.Init(context.Background(), stream.Sources()); err != nil {
 		return dto.HLSResponse{}, err
 	}
 
@@ -208,15 +209,20 @@ func (h *HLSHandler) GetMediaM3U8LLHLS(sn, part string) ([]byte, error) {
 		output = fmt.Sprintf("output_%s_%s.m4s", sn, part)
 	}
 
+	fmt.Println("[TESTDEBUG] 1 lock??")
 	h.mu.Lock()
 	media := h.loadOrStoreMedia(output)
 	h.mu.Unlock()
+	fmt.Println("[TESTDEBUG] 1 lock end")
 
 	select {
 	case <-time.After(4 * time.Second):
 		return nil, errors.New("timeout")
 	case <-media.closeCh:
 	}
+
+	fmt.Println("[TESTDEBUG] 2 lock??")
+	defer fmt.Println("[TESTDEBUG] 2 lock end")
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.llhlsMedia.Marshal()

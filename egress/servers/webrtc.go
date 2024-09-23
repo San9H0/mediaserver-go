@@ -30,7 +30,7 @@ func (f *WebRTCServer) StartSession(streamID string, req dto.WHEPRequest) (dto.W
 	}
 
 	handler := whep.NewHandler(f.se)
-	if err := handler.Init(stream.Tracks(), req.Offer); err != nil {
+	if err := handler.Init(stream.Sources(), req.Offer); err != nil {
 		return dto.WHEPResponse{}, err
 	}
 

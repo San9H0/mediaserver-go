@@ -6,26 +6,16 @@ import (
 	"io"
 	"mediaserver-go/hubs"
 	"mediaserver-go/ingress/sessions"
-	"mediaserver-go/utils/dto"
 	"mediaserver-go/utils/log"
 	"net"
 )
 
 type RTMPServer struct {
-	hub *hubs.Hub
+	rtmpServer *rtmp.Server
+	hub        *hubs.Hub
 }
 
 func NewRTMPServer(hub *hubs.Hub) (RTMPServer, error) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", ":1935")
-	if err != nil {
-		return RTMPServer{}, fmt.Errorf("failed to resolve tcp address: %w", err)
-	}
-
-	listener, err := net.ListenTCP("tcp", tcpAddr)
-	if err != nil {
-		return RTMPServer{}, fmt.Errorf("failed to listen tcp: %w", err)
-	}
-
 	rtmpServer := rtmp.NewServer(&rtmp.ServerConfig{
 		OnConnect: func(conn net.Conn) (io.ReadWriteCloser, *rtmp.ConnConfig) {
 			log.Logger.Info("new rtmp server onConnect")
@@ -34,14 +24,21 @@ func NewRTMPServer(hub *hubs.Hub) (RTMPServer, error) {
 			}
 		},
 	})
-	if err := rtmpServer.Serve(listener); err != nil {
-		return RTMPServer{}, fmt.Errorf("failed to serve rtmp: %w", err)
-	}
 	return RTMPServer{
-		hub: hub,
+		rtmpServer: rtmpServer,
+		hub:        hub,
 	}, nil
 }
 
-func (f *RTMPServer) StartSession(streamID string, req dto.RTMPRequest) (dto.RTMPResponse, error) {
-	return dto.RTMPResponse{}, nil
+func (r *RTMPServer) Start(addr string) error {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve tcp address: %w", err)
+	}
+
+	listener, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen tcp: %w", err)
+	}
+	return r.rtmpServer.Serve(listener)
 }

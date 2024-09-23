@@ -10,8 +10,8 @@ import (
 type Handler struct {
 	mu sync.RWMutex
 
-	encoding    string
-	sourceTrack []*hubs.Track
+	encoding   string
+	negotiated []*hubs.Track
 }
 
 func NewHandler(encoding string) *Handler {
@@ -21,12 +21,20 @@ func NewHandler(encoding string) *Handler {
 }
 
 func (h *Handler) NegotiatedTracks() []*hubs.Track {
-	ret := make([]*hubs.Track, 0, len(h.sourceTrack))
-	return append(ret, h.sourceTrack...)
+	ret := make([]*hubs.Track, 0, len(h.negotiated))
+	return append(ret, h.negotiated...)
 }
 
-func (h *Handler) Init(ctx context.Context, sourceTrack []*hubs.Track) error {
-	h.sourceTrack = sourceTrack
+func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
+	var negotiated []*hubs.Track
+	for _, source := range sources {
+		codec, err := source.Codec()
+		if err != nil {
+			return err
+		}
+		negotiated = append(negotiated, source.GetTrack(codec))
+	}
+	h.negotiated = negotiated
 	return nil
 }
 
@@ -39,7 +47,7 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 }
 
 func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
-	
+
 	return nil
 }
 

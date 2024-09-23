@@ -1,7 +1,6 @@
 package packetizers
 
 import (
-	"bytes"
 	"errors"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
@@ -58,38 +57,36 @@ func (p *CommonPacketizer) Packetize(unit units.Unit) []*rtp.Packet {
 
 type H264Packetizer struct {
 	packetizer rtp.Packetizer
+	config     hubcodecs.H264Config
 	codec      *hubcodecs.H264
 	samples    uint32
 
 	sps, pps []byte
+
+	sps2, pps2 []byte
+	codec2     hubcodecs.Codec
 }
 
 func (h *H264Packetizer) Packetize(unit units.Unit) []*rtp.Packet {
 	naluTyp := h264.NALUType(unit.Payload[0] & 0x1f)
 	if naluTyp == h264.NALUTypeSPS {
-		if h.codec == nil || !bytes.Equal(h.codec.SPS(), unit.Payload) {
-			h.sps = append(make([]byte, 0, len(unit.Payload)), unit.Payload...)
-		}
+		h.sps2 = unit.Payload
 		return nil
 	}
 	if naluTyp == h264.NALUTypePPS {
-		if h.codec == nil || !bytes.Equal(h.codec.PPS(), unit.Payload) {
-			h.pps = append(make([]byte, 0, len(unit.Payload)), unit.Payload...)
-		}
+		h.pps2 = unit.Payload
 		return nil
 	}
 	if naluTyp == h264.NALUTypeIDR {
-		if len(h.sps) > 0 && len(h.pps) > 0 {
-			codec, err := hubcodecs.NewH264(h.sps, h.pps)
-			if err != nil {
-				return nil
-			}
-			h.codec = codec
-			h.sps, h.pps = nil, nil
+		if err := h.config.UnmarshalFromSPSPPS(h.sps2, h.pps2); err != nil {
+			return nil
 		}
 
-		_ = h.packetizer.Packetize(h.codec.SPS(), h.samples)
-		_ = h.packetizer.Packetize(h.codec.PPS(), h.samples)
+		if h.codec2, _ = h.config.GetCodec(); h.codec2 == nil {
+			return nil
+		}
+		_ = h.packetizer.Packetize(h.sps2, h.samples)
+		_ = h.packetizer.Packetize(h.pps2, h.samples)
 	}
 
 	return h.packetizer.Packetize(unit.Payload, h.samples)

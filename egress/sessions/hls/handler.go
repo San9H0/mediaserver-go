@@ -53,16 +53,20 @@ func (h *Handler) CodecString(mediaType types.MediaType) string {
 		switch codecType {
 		case types.CodecTypeH264:
 			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
-			codec, err := h.negotidated[i].VideoCodec()
+			codec, err := h.negotidated[i].Codec()
 			if err != nil {
 				continue
 			}
+			videoCodec, ok := codec.(codecs.VideoCodec)
+			if !ok {
+				continue
+			}
 			profile := stream.CodecParameters().Profile()
-			constraint_flags := codec.ExtraData()[2]
+			constraintFlags := videoCodec.ExtraData()[2]
 			level := stream.CodecParameters().Level()
 			return fmt.Sprintf("%s.%02X%02X%02x",
 				str,
-				profile, constraint_flags, level)
+				profile, constraintFlags, level)
 		case types.CodecTypeAAC:
 			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
 			audioObjectType := 2
@@ -80,23 +84,25 @@ func (h *Handler) NegotiatedTracks() []*hubs.Track {
 	return append(ret, h.negotidated...)
 }
 
-func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
+func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	var err error
 	var videoCodec codecs.VideoCodec
 	var audioCodec codecs.AudioCodec
 	var negotiated []*hubs.Track
-	for _, sourceTrack := range tracks {
-		if sourceTrack.MediaType() == types.MediaTypeVideo {
-			if videoCodec, err = sourceTrack.VideoCodec(); err != nil {
+	for _, source := range sources {
+		if source.MediaType() == types.MediaTypeVideo {
+			if videoCodec, err = source.VideoCodec(); err != nil {
 				return fmt.Errorf("video codec not ready: %w", err)
 			}
 		}
-		if sourceTrack.MediaType() == types.MediaTypeAudio {
-			if audioCodec, err = sourceTrack.AudioCodec(); err != nil {
+		if source.MediaType() == types.MediaTypeAudio {
+			if audioCodec, err = source.AudioCodec(); err != nil {
 				return fmt.Errorf("audio codec not ready: %w", err)
 			}
 		}
-		negotiated = append(negotiated, sourceTrack)
+		codec, _ := source.Codec()
+		track := source.GetTrack(codec)
+		negotiated = append(negotiated, track)
 	}
 
 	if videoCodec.CodecType() != types.CodecTypeH264 {
@@ -114,8 +120,8 @@ func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
 	}
 	h.outputFormatCtx = outputFormatCtx
 
-	for _, sourceTrack := range negotiated {
-		sourceCodec, err := sourceTrack.Codec()
+	for _, track := range negotiated {
+		sourceCodec, err := track.Codec()
 		if err != nil {
 			return fmt.Errorf("codec not found: %w", err)
 		}
@@ -123,7 +129,7 @@ func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
 		if outputStream == nil {
 			return errors.New("avformat stream allocation failed")
 		}
-		avCodec := avcodec.AvcodecFindEncoder(types.CodecIDFromType(sourceTrack.CodecType()))
+		avCodec := avcodec.AvcodecFindEncoder(types.CodecIDFromType(track.CodecType()))
 		if avCodec == nil {
 			return errors.New("encoder not found")
 		}

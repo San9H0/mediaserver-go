@@ -26,9 +26,11 @@ func (f *RTPServer) StartSession(streamID string, req dto.IngressRTPRequest) (dt
 		return dto.IngressRTPResponse{}, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = cancel
-	go fileSession.Run(ctx)
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		fileSession.Run(ctx)
+	}()
 
 	return dto.IngressRTPResponse{}, nil
 }

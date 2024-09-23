@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"go.uber.org/zap"
 
 	"golang.org/x/sync/errgroup"
 
@@ -21,14 +22,14 @@ type Handler[T any] interface {
 }
 
 type Session[T any] struct {
-	handler      Handler[T]
-	sourceTracks []*hubs.Track
+	handler   Handler[T]
+	hubTracks []*hubs.Track
 }
 
 func NewSession[T any](handler Handler[T]) *Session[T] {
 	return &Session[T]{
-		handler:      handler,
-		sourceTracks: handler.NegotiatedTracks(),
+		handler:   handler,
+		hubTracks: handler.NegotiatedTracks(),
 	}
 }
 
@@ -37,14 +38,14 @@ func (s *Session[T]) Run(ctx context.Context) error {
 	defer func() {
 		log.Logger.Info("session stopped")
 		if err := s.handler.OnClosed(ctx); err != nil {
-			// log error
+			log.Logger.Error("failed to close session", zap.Error(err))
 		}
 	}()
 	g, ctx := errgroup.WithContext(ctx)
-	for _, track := range s.sourceTracks {
+	for _, track := range s.hubTracks {
 		track := track
+		consumerCh := track.AddConsumer()
 		g.Go(func() error {
-			consumerCh := track.AddConsumer()
 			defer func() {
 				track.RemoveConsumer(consumerCh)
 			}()

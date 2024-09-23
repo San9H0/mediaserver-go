@@ -70,7 +70,7 @@ package hubs
 //
 //}
 //
-//func (f *HLSSession) readTrack(ctx context.Context, index int, track *hubs.Track) error {
+//func (f *HLSSession) readTrack(ctx context.Context, index int, track *hubs.HubSource) error {
 //	consumerCh := track.AddConsumer()
 //	defer func() {
 //		track.RemoveConsumer(consumerCh)

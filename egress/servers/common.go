@@ -6,20 +6,20 @@ import (
 	"mediaserver-go/utils/types"
 )
 
-func filterMediaTypesInStream(stream *hubs.Stream, mediaTypes []types.MediaType) ([]*hubs.Track, error) {
-	var sourceTracks []*hubs.Track
-	tracksMap := stream.TracksMap()
+func filterMediaTypesInStream(stream *hubs.Stream, mediaTypes []types.MediaType) ([]*hubs.HubSource, error) {
+	var hubSources []*hubs.HubSource
+	sourcesMap := stream.SourcesMap()
 	for _, requestMediaType := range mediaTypes {
-		track, ok := tracksMap[requestMediaType]
+		source, ok := sourcesMap[requestMediaType]
 		if !ok {
 			continue
 		}
-		sourceTracks = append(sourceTracks, track)
+		hubSources = append(hubSources, source)
 	}
 
-	if len(sourceTracks) == 0 {
+	if len(hubSources) == 0 {
 		return nil, errors.New("no source tracks found")
 	}
 
-	return sourceTracks, nil
+	return hubSources, nil
 }

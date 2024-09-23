@@ -18,7 +18,6 @@ import (
 
 	"mediaserver-go/hubs"
 	hubcodecs "mediaserver-go/hubs/codecs"
-	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/ntp"
 	"mediaserver-go/utils/types"
@@ -26,12 +25,12 @@ import (
 )
 
 type TrackContext struct {
-	sourceTrack *hubs.Track
-	localTrack  *pion.TrackLocalStaticRTP
-	sender      *pion.RTPSender
-	packetizer  rtp.Packetizer
-	buf         []byte
-	stats       *Stats
+	track      *hubs.Track
+	localTrack *pion.TrackLocalStaticRTP
+	sender     *pion.RTPSender
+	packetizer rtp.Packetizer
+	buf        []byte
+	stats      *Stats
 
 	getExtensions []func() (int, []byte, bool)
 }
@@ -65,19 +64,17 @@ func (h *Handler) Answer() string {
 	return h.pc.LocalDescription().SDP
 }
 
-func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
-	onConnectionState := make(chan pion.PeerConnectionState, 10)
-
+func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 	var negotidated []*hubs.Track
 	me := &pion.MediaEngine{}
-	for _, track := range tracks {
-		switch track.MediaType() {
+	for _, source := range sources {
+		switch source.MediaType() {
 		case types.MediaTypeVideo:
-			videoCodec, err := track.VideoCodec()
+			codec, err := source.Codec()
 			if err != nil {
 				return err
 			}
-			webrtcCodecCapability, err := videoCodec.WebRTCCodecCapability()
+			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
 				return err
 			}
@@ -90,13 +87,14 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 			}, pion.RTPCodecTypeVideo); err != nil {
 				return err
 			}
+			track := source.GetTrack(codec)
 			negotidated = append(negotidated, track)
 		case types.MediaTypeAudio:
-			audioCodec, err := track.AudioCodec()
+			codec, err := source.Codec()
 			if err != nil {
 				return err
 			}
-			webrtcCodecCapability, err := audioCodec.WebRTCCodecCapability()
+			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
 				return err
 			}
@@ -106,7 +104,7 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 			}, pion.RTPCodecTypeAudio); err != nil {
 				return err
 			}
-
+			track := source.GetTrack(codec)
 			negotidated = append(negotidated, track)
 		}
 	}
@@ -128,7 +126,7 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 	for _, track := range negotidated {
 		switch track.MediaType() {
 		case types.MediaTypeVideo:
-			videoCodec, err := track.VideoCodec()
+			videoCodec, err := track.Codec()
 			if err != nil {
 				return err
 			}
@@ -150,10 +148,11 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 
 			h.localTracks[track] = localTrack
 		case types.MediaTypeAudio:
-			audioCodec, err := track.AudioCodec()
+			audioCodec, err := track.Codec()
 			if err != nil {
 				return err
 			}
+
 			trackID, err := uuid.NewRandom()
 			if err != nil {
 				return err
@@ -189,13 +188,9 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 		candidateCh <- candidate
 	})
 	pc.OnConnectionStateChange(func(connectionState pion.PeerConnectionState) {
-		utils.SendOrDrop(onConnectionState, connectionState)
+		log.Logger.Info("connection state changed", zap.String("state", connectionState.String()))
 	})
 	pc.OnTrack(func(remote *pion.TrackRemote, receiver *pion.RTPReceiver) {
-		fmt.Println("[TESTDEBUG] whep ontrack")
-		for _, rtpExt := range receiver.GetParameters().HeaderExtensions {
-			fmt.Println("rtpExt:", rtpExt.ID, ", uri:", rtpExt.URI)
-		}
 	})
 
 	sd, err := pc.CreateAnswer(&pion.AnswerOptions{})
@@ -213,6 +208,7 @@ func (h *Handler) Init(tracks []*hubs.Track, offer string) error {
 	h.api = api
 	h.pc = pc
 	h.negotidated = negotidated
+	log.Logger.Info("whep negotiated end", zap.Int("negotiated", len(negotidated)))
 	return nil
 }
 
@@ -245,6 +241,7 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
 	clockRate := sender.GetParameters().Codecs[0].ClockRate
 
+	fmt.Println("[TESTDEBUg] whep mimetype:", sender.GetParameters().Codecs[0].MimeType)
 	var packetizer rtp.Packetizer
 	switch types.CodecTypeFromMimeType(sender.GetParameters().Codecs[0].MimeType) {
 	case types.CodecTypeH264:
@@ -267,7 +264,7 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	}
 
 	return &TrackContext{
-		sourceTrack:   track,
+		track:         track,
 		localTrack:    localTrack,
 		sender:        sender,
 		packetizer:    packetizer,
@@ -281,10 +278,10 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 	packetizer := trackCtx.packetizer
 	buf := trackCtx.buf
 	localTrack := trackCtx.localTrack
-	track := trackCtx.sourceTrack
+	track := trackCtx.track
 	if track.CodecType() == types.CodecTypeH264 {
 		if h264.NALUType(unit.Payload[0]&0x1f) == h264.NALUTypeIDR {
-			codec, _ := track.VideoCodec()
+			codec, _ := track.Codec()
 			h264Codec := codec.(*hubcodecs.H264)
 			_ = packetizer.Packetize(h264Codec.SPS(), 3000)
 			_ = packetizer.Packetize(h264Codec.PPS(), 3000)

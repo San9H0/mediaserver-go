@@ -11,22 +11,18 @@ import (
 	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/parser/format"
+	"mediaserver-go/parsers/format"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"slices"
 	"time"
 )
 
-const (
-	bufferSize = 32768
-)
-
 type FileSession struct {
 	live bool
 
 	audioIndex, videoIndex int
-	audioTrack, videoTrack *hubs.Track
+	audioTrack, videoTrack *hubs.HubSource
 
 	inputFormatCtx *avformat.FormatContext
 
@@ -35,7 +31,7 @@ type FileSession struct {
 
 func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream *hubs.Stream) (FileSession, error) {
 	audioIndex, videoIndex := -1, -1
-	var audioTrack, videoTrack *hubs.Track
+	var sudioSource, videoSource *hubs.HubSource
 	inputFormatCtx := avformat.NewAvFormatContextNull()
 	if ret := avformat.AvformatOpenInput(&inputFormatCtx, path, nil, nil); ret < 0 {
 		return FileSession{}, errors.New("avformat open input failed")
@@ -56,12 +52,12 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 
 		if mediaType == types.MediaTypeVideo {
 			videoIndex = i
-			videoTrack = hubs.NewTrack(types.MediaTypeVideo, codecType)
-			stream.AddTrack(videoTrack)
+			videoSource = hubs.NewHubSource(types.MediaTypeVideo, codecType)
+			stream.AddSource(videoSource)
 		} else if mediaType == types.MediaTypeAudio {
 			audioIndex = i
-			audioTrack = hubs.NewTrack(types.MediaTypeAudio, codecType)
-			stream.AddTrack(audioTrack)
+			sudioSource = hubs.NewHubSource(types.MediaTypeAudio, codecType)
+			stream.AddSource(sudioSource)
 		}
 		tracks[i] = types.NewTrack(mediaType, codecType)
 	}
@@ -69,8 +65,7 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 		return FileSession{}, fmt.Errorf("no audio or video stream found audioIndex:%d, videoIndex:%d", audioIndex, videoIndex)
 	}
 
-	fmt.Println("[TESTDEBUG] videoTrack != nil:", videoTrack != nil)
-	if videoTrack != nil {
+	if videoSource != nil {
 		inputStream := inputFormatCtx.Streams()[videoIndex]
 
 		inputCodecpar := inputStream.CodecParameters()
@@ -84,29 +79,26 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 			return FileSession{}, err
 		}
 
-		videoTrack.SetCodec(h264Codecs)
+		videoSource.SetCodec(h264Codecs)
 	}
 
-	if audioTrack != nil {
+	if sudioSource != nil {
 		inputStream := inputFormatCtx.Streams()[audioIndex]
 		inputCodecpar := inputStream.CodecParameters()
 
-		fmt.Println("[TESTDEBUG] aac sampleRate:", inputCodecpar.SampleRate(), ", channels:", inputCodecpar.Channels(), ", sampleFmt:", inputCodecpar.Format())
-		audioTrack.SetCodec(codecs.NewAAC(codecs.AACParameters{
+		sudioSource.SetCodec(codecs.NewAAC(codecs.AACParameters{
 			SampleRate: inputCodecpar.SampleRate(),
 			Channels:   inputCodecpar.Channels(),
 			SampleFmt:  inputCodecpar.Format(),
 		}))
 	}
 
-	fmt.Println("videoIndex:", videoIndex, ", audioIndex:", audioIndex)
-
 	return FileSession{
 		live:           live,
 		audioIndex:     audioIndex,
 		videoIndex:     videoIndex,
-		audioTrack:     audioTrack,
-		videoTrack:     videoTrack,
+		audioTrack:     sudioSource,
+		videoTrack:     videoSource,
 		stream:         stream,
 		inputFormatCtx: inputFormatCtx,
 	}, nil
@@ -114,15 +106,9 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, stream
 
 func (s *FileSession) Run(ctx context.Context) error {
 	defer func() {
-		fmt.Println("[TESTDEBUG] ingress file session closed")
 		s.inputFormatCtx.AvformatCloseInput()
-		fmt.Println("file session done")
-		s.Finish()
-		fmt.Println("file write done")
 		s.stream.Close()
 	}()
-
-	fmt.Println("[TESTDEBUG] fileSession run")
 
 	var startTime time.Time
 
@@ -182,8 +168,4 @@ func (s *FileSession) Run(ctx context.Context) error {
 		}
 
 	}
-}
-
-func (s *FileSession) Finish() {
-	return
 }

@@ -2,6 +2,7 @@ package codecs
 
 import (
 	"errors"
+	"mediaserver-go/ffmpeg/goav/avutil"
 
 	pion "github.com/pion/webrtc/v3"
 
@@ -15,6 +16,8 @@ var (
 )
 
 type Codec interface {
+	String() string
+	Equals(codec Codec) bool
 	CodecType() types.CodecType
 	MediaType() types.MediaType
 	SetCodecContext(codecCtx *avcodec.CodecContext)
@@ -26,6 +29,7 @@ type Codec interface {
 type AudioCodec interface {
 	Codec
 
+	AvCodecFifoAlloc() *avutil.AvAudioFifo
 	SampleRate() int
 	Channels() int
 	SampleFormat() int

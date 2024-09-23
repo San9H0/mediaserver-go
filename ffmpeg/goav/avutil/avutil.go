@@ -7,18 +7,22 @@
 // Some generic features and utilities provided by the libavutil library
 package avutil
 
+import "C"
+import "unsafe"
+
 //#cgo pkg-config: libavutil
 //#include <libavutil/avutil.h>
+//#include <libavutil/samplefmt.h>
 //#include <stdlib.h>
 //char * fn_av_fourcc2str(int fourcc) {
 //  return av_fourcc2str(fourcc);
 //}
+//char *fn_av_err2str(int errnum) {
+//  return av_err2str(errnum);
+//}
 import "C"
 
 import "C"
-import (
-	"unsafe"
-)
 
 type (
 	Options       C.struct_AVOptions
@@ -28,6 +32,8 @@ type (
 	AvPictureType C.enum_AVPictureType
 	PixelFormat   C.enum_AVPixelFormat
 	File          C.FILE
+	Frame         C.struct_AVFrame
+	AvAudioFifo   C.struct_AVAudioFifo
 )
 
 const (
@@ -88,4 +94,8 @@ func AvGetTimeBaseQ() Rational {
 
 func AvFourcc2str(fourcc int) string {
 	return C.GoString(C.fn_av_fourcc2str(C.int(fourcc)))
+}
+
+func AvErr2str(errnum int) string {
+	return C.GoString(C.fn_av_err2str(C.int(errnum)))
 }

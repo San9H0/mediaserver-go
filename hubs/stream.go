@@ -8,54 +8,54 @@ import (
 type Stream struct {
 	mu sync.RWMutex
 
-	tracks []*Track
+	source []*HubSource
 }
 
 func NewStream() *Stream {
 	return &Stream{}
 }
 
-func (s *Stream) AddTrack(track *Track) {
+func (s *Stream) AddSource(source *HubSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.tracks = append(s.tracks, track)
+	s.source = append(s.source, source)
 }
 
-func (s *Stream) RemoveTrack(track *Track) {
+func (s *Stream) RemoveSource(source *HubSource) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for i, t := range s.tracks {
-		if t == track {
-			s.tracks = append(s.tracks[:i], s.tracks[i+1:]...)
+	for i, t := range s.source {
+		if t == source {
+			s.source = append(s.source[:i], s.source[i+1:]...)
 			return
 		}
 	}
 }
 
-func (s *Stream) Tracks() []*Track {
+func (s *Stream) Sources() []*HubSource {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	tracks := make([]*Track, 0, len(s.tracks))
-	return append(tracks, s.tracks...)
+	tracks := make([]*HubSource, 0, len(s.source))
+	return append(tracks, s.source...)
 }
 
-func (s *Stream) TracksMap() map[types.MediaType]*Track {
+func (s *Stream) SourcesMap() map[types.MediaType]*HubSource {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	tracks := make(map[types.MediaType]*Track)
-	for _, t := range s.tracks {
-		tracks[t.MediaType()] = t
+	sources := make(map[types.MediaType]*HubSource)
+	for _, t := range s.source {
+		sources[t.MediaType()] = t
 	}
-	return tracks
+	return sources
 }
 
 func (s *Stream) Close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for _, t := range s.tracks {
+	for _, t := range s.source {
 		t.Close()
 	}
-	s.tracks = nil
+	s.source = nil
 }

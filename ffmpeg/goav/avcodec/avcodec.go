@@ -23,7 +23,6 @@ type (
 	Parser                        C.struct_AVCodecParser
 	ParserContext                 C.struct_AVCodecParserContext
 	Dictionary                    C.struct_AVDictionary
-	Frame                         C.struct_AVFrame
 	Packet                        C.struct_AVPacket
 	BitStreamFilter               C.struct_AVBitStreamFilter
 	BitStreamFilterContext        C.struct_AVBitStreamFilterContext
@@ -50,7 +49,6 @@ type (
 	AvDiscard                     C.enum_AVDiscard
 	AvFieldOrder                  C.enum_AVFieldOrder
 	AvPacketSideDataType          C.enum_AVPacketSideDataType
-	AvSampleFormat                C.enum_AVSampleFormat
 )
 
 //	func (cp *AvCodecParameters) AvCodecGetId() CodecId {
@@ -185,12 +183,11 @@ func AvPacketAlloc() *Packet {
 //		return int(C.av_packet_unpack_dictionary((*C.uint8_t)(d), C.int(s), (**C.struct_AVDictionary)(unsafe.Pointer(dt))))
 //	}
 //
-// // Find a registered decoder with a matching codec ID.
-//
-//	func AvcodecFindDecoder(id CodecId) *Codec {
-//		return (*Codec)(C.avcodec_find_decoder((C.enum_AVCodecID)(id)))
-//	}
-//
+// Find a registered decoder with a matching codec ID.
+func AvcodecFindDecoder(id CodecID) *Codec {
+	return (*Codec)(C.avcodec_find_decoder((C.enum_AVCodecID)(id)))
+}
+
 //	func AvCodecIterate(p *unsafe.Pointer) *Codec {
 //		return (*Codec)(C.av_codec_iterate(p))
 //	}

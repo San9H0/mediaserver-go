@@ -14,6 +14,22 @@ func (cc *CodecContext) AvCodecOpen2(codec *Codec, options **Dictionary) int {
 	return int(C.avcodec_open2((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVCodec)(unsafe.Pointer(codec)), (**C.struct_AVDictionary)(unsafe.Pointer(options))))
 }
 
+func (cc *CodecContext) AvCodecSendPacket(packet *Packet) int {
+	return int(C.avcodec_send_packet((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVPacket)(unsafe.Pointer(packet))))
+}
+
+func (cc *CodecContext) AvCodecReceivePacket(packet *Packet) int {
+	return int(C.avcodec_receive_packet((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVPacket)(unsafe.Pointer(packet))))
+}
+
+func (cc *CodecContext) AvCodecSendFrame(frame *avutil.Frame) int {
+	return int(C.avcodec_send_frame((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVFrame)(unsafe.Pointer(frame))))
+}
+
+func (cc *CodecContext) FrameSize() int {
+	return int(cc.frame_size)
+}
+
 func (cc *CodecContext) CodecID() CodecID {
 	return CodecID(cc.codec_id)
 }
@@ -36,6 +52,10 @@ func (cc *CodecContext) CodecType() avutil.MediaType {
 
 func (cc *CodecContext) SetCodecType(mediaType avutil.MediaType) {
 	cc.codec_type = C.enum_AVMediaType(mediaType)
+}
+
+func (cc *CodecContext) CodecTag() uint32 {
+	return uint32(cc.codec_tag)
 }
 
 func (cc *CodecContext) SampleRate() int {
@@ -89,19 +109,22 @@ func (cc *CodecContext) SetExtraData(data []byte) {
 }
 
 func (cc *CodecContext) ChangeExtraData(data []byte) {
-
 	cc.extradata = (*C.uint8_t)(C.CBytes(data))
 	cc.extradata_size = C.int(len(data))
 }
 
-func (cc *CodecContext) SetSampleFmt(sampleFmt AvSampleFormat) {
+func (cc *CodecContext) SetSampleFmt(sampleFmt avutil.AvSampleFormat) {
 	cc.sample_fmt = (C.enum_AVSampleFormat)(sampleFmt)
 }
 
-func (cc *CodecContext) SampleFmt() AvSampleFormat {
-	return AvSampleFormat(cc.sample_fmt)
+func (cc *CodecContext) SampleFmt() avutil.AvSampleFormat {
+	return avutil.AvSampleFormat(cc.sample_fmt)
 }
 
 func (cc *CodecContext) ChLayout() *avutil.AvChannelLayout {
 	return (*avutil.AvChannelLayout)(unsafe.Pointer(&cc.ch_layout))
+}
+
+func (cc *CodecContext) AvCodecReceiveFrame(frame *avutil.Frame) int {
+	return int(C.avcodec_receive_frame((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVFrame)(unsafe.Pointer(frame))))
 }

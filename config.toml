@@ -5,3 +5,5 @@ Port = 8080
 Level = "debug"
 Path = "log.log"
 
+[Rtmp]
+Port = 1935

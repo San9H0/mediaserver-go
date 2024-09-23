@@ -2,18 +2,20 @@ package hubs
 
 import (
 	"errors"
-	"sync"
-	"time"
-
+	"go.uber.org/zap"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils"
+	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
+	"sync"
+	"time"
 )
 
 type Track struct {
 	mu sync.RWMutex
 
+	ch        chan units.Unit
 	closed    bool
 	consumers []chan units.Unit
 
@@ -26,9 +28,19 @@ type Track struct {
 
 func NewTrack(mediaType types.MediaType, codecType types.CodecType) *Track {
 	return &Track{
+		ch:        make(chan units.Unit, 100),
 		mediaType: mediaType,
 		codecType: codecType,
 		codecset:  make(chan codecs.Codec),
+	}
+}
+
+func (t *Track) Run() {
+	for {
+		select {
+		case unit := <-t.ch:
+			t.Write(unit)
+		}
 	}
 }
 
@@ -36,10 +48,12 @@ func (t *Track) Close() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	for _, c := range t.consumers {
+	consumer := t.consumers
+	t.consumers = nil
+	for _, c := range consumer {
 		close(c)
 	}
-	t.consumers = nil
+	close(t.ch)
 }
 
 func (t *Track) MediaType() types.MediaType {
@@ -50,16 +64,11 @@ func (t *Track) CodecType() types.CodecType {
 	return t.codecType
 }
 
-func (t *Track) IsReady() bool {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return t.closed
-}
-
 func (t *Track) SetCodec(c codecs.Codec) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+
+	log.Logger.Info("SetCodec called", zap.Any("codec", c.CodecType()))
 	t.codec = c
 	if t.closed {
 		return
@@ -78,38 +87,6 @@ func (t *Track) Codec() (codecs.Codec, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.codec, nil
-}
-
-func (t *Track) VideoCodec() (codecs.VideoCodec, error) {
-	select {
-	case <-t.codecset:
-	case <-time.After(500 * time.Millisecond):
-		return nil, errors.New("video codec not set")
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	c, ok := t.codec.(codecs.VideoCodec)
-	if !ok {
-		return nil, errors.New("invalid codec")
-	}
-	return c, nil
-}
-
-func (t *Track) AudioCodec() (codecs.AudioCodec, error) {
-	select {
-	case <-t.codecset:
-	case <-time.After(500 * time.Millisecond):
-		return nil, errors.New("video codec not set")
-	}
-
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	c, ok := t.codec.(codecs.AudioCodec)
-	if !ok {
-		return nil, errors.New("invalid codec")
-	}
-	return c, nil
 }
 
 func (t *Track) Write(unit units.Unit) {

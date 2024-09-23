@@ -10,7 +10,7 @@ import (
 	"io"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/parser/format"
+	"mediaserver-go/parsers/format"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -24,16 +24,20 @@ type RTMPSession struct {
 	streamKey string
 	hub       *hubs.Hub
 	stream    *hubs.Stream
-	extraData format.ExtraData
+	extraData codecs.H264Config
 
-	videoTrack    *hubs.Track
-	audioTrack    *hubs.Track
+	videoSource   *hubs.HubSource
+	audioSource   *hubs.HubSource
 	prevTimestamp uint32
+
+	testTranscoder *hubs.AudioTranscoder
 }
 
 func NewRTMPSession(hub *hubs.Hub) *RTMPSession {
 	return &RTMPSession{
 		hub: hub,
+
+		testTranscoder: hubs.NewAudioTranscoder(),
 	}
 }
 
@@ -111,6 +115,7 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 
 	for _, amf := range script.Objects {
 		for key, v := range amf {
+			fmt.Printf("key:%v, value:%v, type:%T\n", key, v, v)
 			switch key {
 			case "videocodecid":
 				fv := v.(float64)
@@ -118,16 +123,16 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if value != flvtag.CodecIDAVC {
 					return fmt.Errorf("unsupported video codec: %v", v)
 				}
-				h.videoTrack = hubs.NewTrack(types.MediaTypeVideo, types.CodecTypeH264)
-				h.stream.AddTrack(h.videoTrack)
+				h.videoSource = hubs.NewHubSource(types.MediaTypeVideo, types.CodecTypeH264)
+				h.stream.AddSource(h.videoSource)
 			case "audiocodecid":
 				fv := v.(float64)
 				value := flvtag.SoundFormat(fv)
 				if value != flvtag.SoundFormatAAC {
 					return fmt.Errorf("unsupported audio codec: %v", v)
 				}
-				h.audioTrack = hubs.NewTrack(types.MediaTypeAudio, types.CodecTypeAAC)
-				h.stream.AddTrack(h.audioTrack)
+				h.audioSource = hubs.NewHubSource(types.MediaTypeAudio, types.CodecTypeAAC)
+				h.stream.AddSource(h.audioSource)
 			}
 		}
 	}
@@ -164,17 +169,18 @@ func (h *RTMPSession) OnAudio(timestamp uint32, payload io.Reader) error {
 			Channels:   config.Channel,
 			SampleFmt:  8,
 		})
-		h.audioTrack.SetCodec(codec)
+		h.audioSource.SetCodec(codec)
 	case flvtag.AACPacketTypeRaw:
 		duration := timestamp - h.prevTimestamp
 		h.prevTimestamp = timestamp
-		h.audioTrack.Write(units.Unit{
+		h.audioSource.Write(units.Unit{
 			Payload:  data,
 			PTS:      int64(timestamp),
 			DTS:      int64(timestamp),
 			Duration: int64(duration),
 			TimeBase: 1000,
 		})
+
 	}
 	return nil
 }
@@ -194,19 +200,19 @@ func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
 		if video.CodecID != flvtag.CodecIDAVC {
 			return fmt.Errorf("unsupported video codec: %v", video.CodecID)
 		}
-		if err := h.extraData.Unmarshal(body); err != nil {
+		if err := h.extraData.UnmarshalFromConfig(body); err != nil {
 			return err
 		}
 		h264Codecs, err := codecs.NewH264(h.extraData.SPS, h.extraData.PPS)
 		if err != nil {
 			return err
 		}
-		h.videoTrack.SetCodec(h264Codecs)
+		h.videoSource.SetCodec(h264Codecs)
 	case flvtag.AVCPacketTypeNALU:
 		duration := timestamp - h.prevTimestamp
 		h.prevTimestamp = timestamp
 		for _, au := range format.GetAUFromAVC(body) {
-			h.videoTrack.Write(units.Unit{
+			h.videoSource.Write(units.Unit{
 				Payload:  au,
 				PTS:      int64(timestamp),
 				DTS:      int64(timestamp),

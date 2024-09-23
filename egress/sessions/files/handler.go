@@ -51,23 +51,24 @@ func (h *Handler) NegotiatedTracks() []*hubs.Track {
 	return append(ret, h.negotiated...)
 }
 
-func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
+func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	var err error
 	var videoCodec codecs.VideoCodec
 	var audioCodec codecs.AudioCodec
 	var negotiated []*hubs.Track
-	for _, sourceTrack := range tracks {
-		if sourceTrack.MediaType() == types.MediaTypeVideo {
-			if videoCodec, err = sourceTrack.VideoCodec(); err != nil {
+	for _, source := range sources {
+		if source.MediaType() == types.MediaTypeVideo {
+			if videoCodec, err = source.VideoCodec(); err != nil {
 				return fmt.Errorf("video codec not ready: %w", err)
 			}
-		}
-		if sourceTrack.MediaType() == types.MediaTypeAudio {
-			if audioCodec, err = sourceTrack.AudioCodec(); err != nil {
+		} else if source.MediaType() == types.MediaTypeAudio {
+			if audioCodec, err = source.AudioCodec(); err != nil {
 				return fmt.Errorf("audio codec not ready: %w", err)
 			}
 		}
-		negotiated = append(negotiated, sourceTrack)
+		codec, _ := source.Codec()
+		track := source.GetTrack(codec)
+		negotiated = append(negotiated, track)
 	}
 	extension, err := codecs.GetExtension(videoCodec, audioCodec)
 	if err != nil {
@@ -160,7 +161,6 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	index := slices.Index(h.negotiated, track)
 	outputStream := h.outputFormatCtx.Streams()[index]
 	return &TrackContext{
-		sourceTrack:  track,
 		pkt:          avcodec.AvPacketAlloc(),
 		outputStream: outputStream,
 		writer:       writers.NewWriter(index, outputStream.TimeBase().Den(), track.CodecType()),

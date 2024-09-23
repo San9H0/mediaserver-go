@@ -38,7 +38,6 @@ func main() {
 	}
 	se.SetIncludeLoopbackCandidate(true)
 	se.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
-	//se.SetNAT1To1IPs([]string{"127.0.0.1"}, webrtc.ICECandidateTypeHost)
 	se.SetLite(true)
 
 	whipServer, err := ingress.NewWHIP(hub, se)
@@ -58,7 +57,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	efs, err := egress.NewFileServer(hub)
+	egressFileServer, err := egress.NewFileServer(hub)
 	if err != nil {
 		panic(err)
 	}
@@ -70,25 +69,25 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	imageServer, err := egress.NewImageServer(hub)
+	egressImageServer, err := egress.NewImageServer(hub)
 	if err != nil {
 		panic(err)
 	}
 
-	go func() {
-		rtmpServer, err := ingress.NewRTMPServer(hub)
-		_ = rtmpServer
-		if err != nil {
-			panic(err)
-		}
-
-	}()
-	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &efs, &ingressRTPServer, &egressRTPServer, &hlsServer, &imageServer)
+	e := endpoints.Initialize(&whipServer, &fileServer, &whepServer, &egressFileServer, &ingressRTPServer, &egressRTPServer, &hlsServer, &egressImageServer)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
-		return e.Start(fmt.Sprintf(":%d", viper.GetInt("general.port")))
+		port := viper.GetInt("general.port")
+		return e.Start(fmt.Sprintf("0.0.0.0:%d", port))
+	})
+	g.Go(func() error {
+		rtmpServer, err := ingress.NewRTMPServer(hub)
+		if err != nil {
+			return err
+		}
+		port := viper.GetUint16("rtmp.port")
+		return rtmpServer.Start(fmt.Sprintf("0.0.0.0:%d", port))
 	})
 	if err := g.Wait(); err != nil {
 		panic(err)

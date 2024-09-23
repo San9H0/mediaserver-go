@@ -18,7 +18,7 @@ type CodecInfo struct {
 
 type Handler struct {
 	conn         *net.UDPConn
-	sourceTracks []*hubs.Track
+	sourceTracks []*hubs.HubSource
 
 	targetAddr  string
 	targetPort  int
@@ -47,7 +47,7 @@ func (h *Handler) SDP() string {
 	return string(b)
 }
 
-func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
+func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	target, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", h.targetAddr, h.targetPort))
 	if err != nil {
 		return err
@@ -58,8 +58,8 @@ func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
 	}
 	var negotidated []*hubs.Track
 	sd := h.makeSessionDescription()
-	for _, sourceTrack := range tracks {
-		codec, err := sourceTrack.Codec()
+	for _, source := range sources {
+		codec, err := source.Codec()
 		if err != nil {
 			return err
 		}
@@ -68,7 +68,8 @@ func (h *Handler) Init(ctx context.Context, tracks []*hubs.Track) error {
 			return err
 		}
 		sd.MediaDescriptions = append(sd.MediaDescriptions, &capa.MediaDescription)
-		negotidated = append(negotidated, sourceTrack)
+		track := source.GetTrack(codec)
+		negotidated = append(negotidated, track)
 	}
 
 	h.conn = conn
