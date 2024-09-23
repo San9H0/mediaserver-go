@@ -15,6 +15,7 @@ package avcodec
 //#include <libavcodec/avcodec.h>
 //#include <libavutil/avutil.h>
 import "C"
+import "unsafe"
 
 type (
 	Codec                         C.struct_AVCodec
@@ -292,3 +293,7 @@ func AvcodecFindEncoder(id CodecID) *Codec {
 //func (f *Frame) Pts() int64 {
 //	return int64(f.pts)
 //}
+
+func AvCodecFreeContext(ctx **CodecContext) {
+	C.avcodec_free_context((**C.struct_AVCodecContext)(unsafe.Pointer(ctx)))
+}

@@ -74,6 +74,10 @@ func (a *AAC) SampleRate() int {
 	return a.sampleRate
 }
 
+func (a *AAC) ExtraData() []byte {
+	return nil
+}
+
 func (a *AAC) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 	return pion.RTPCodecCapability{}, errUnsupportedWebRTC
 }
@@ -84,6 +88,7 @@ func (a *AAC) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetSampleRate(a.SampleRate())
 	avutil.AvChannelLayoutDefault(codecCtx.ChLayout(), a.Channels())
 	codecCtx.SetSampleFmt(avutil.AvSampleFormat(a.SampleFormat()))
+	fmt.Println("[TESTDEBUG] aac sampleRate:", a.sampleRate, "channels:", a.channels, "sampleFmt:", a.sampleFmt)
 }
 
 func (a *AAC) AvCodecFifoAlloc() *avutil.AvAudioFifo {
@@ -92,4 +97,8 @@ func (a *AAC) AvCodecFifoAlloc() *avutil.AvAudioFifo {
 
 func (a *AAC) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error) {
 	return engines.RTPCodecParameters{}, errors.New("not implemented")
+}
+
+func (a *AAC) BitStreamFilter(b []byte) [][]byte {
+	return [][]byte{b}
 }

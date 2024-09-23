@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"mediaserver-go/egress/sessions/whep/playoutdelay"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"slices"
 	"time"
 
@@ -78,9 +79,9 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 			if err != nil {
 				return err
 			}
-			if err := me.RegisterHeaderExtension(pion.RTPHeaderExtensionCapability{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"}, pion.RTPCodecTypeVideo); err != nil {
-				return err
-			}
+			//if err := me.RegisterHeaderExtension(pion.RTPHeaderExtensionCapability{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"}, pion.RTPCodecTypeVideo); err != nil {
+			//	return err
+			//}
 			if err := me.RegisterCodec(pion.RTPCodecParameters{
 				RTPCodecCapability: webrtcCodecCapability,
 				PayloadType:        127,
@@ -96,6 +97,14 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 			}
 			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
+				codec = hubcodecs.NewOpus(hubcodecs.OpusParameters{
+					Channels:   2,
+					SampleRate: 48000,
+					SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLT),
+				})
+				webrtcCodecCapability, err = codec.WebRTCCodecCapability()
+			}
+			if err != nil {
 				return err
 			}
 			if err := me.RegisterCodec(pion.RTPCodecParameters{
@@ -109,7 +118,6 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 		}
 	}
 
-	fmt.Println("negotidated:", len(negotidated))
 	api := pion.NewAPI(pion.WithMediaEngine(me), pion.WithSettingEngine(h.se))
 
 	pc, err := api.NewPeerConnection(pion.Configuration{
@@ -241,7 +249,6 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
 	clockRate := sender.GetParameters().Codecs[0].ClockRate
 
-	fmt.Println("[TESTDEBUg] whep mimetype:", sender.GetParameters().Codecs[0].MimeType)
 	var packetizer rtp.Packetizer
 	switch types.CodecTypeFromMimeType(sender.GetParameters().Codecs[0].MimeType) {
 	case types.CodecTypeH264:

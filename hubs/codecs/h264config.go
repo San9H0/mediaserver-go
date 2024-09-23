@@ -176,8 +176,8 @@ func (h *H264Config) Marshal() ([]byte, error) {
 	b[7] = byte(len(h.SPS) & 0xff)
 	copy(b[8:], h.SPS)
 	b[8+len(h.SPS)] = 1 // pps 개수는 1개이다.
-	b[9+len(h.SPS)] = byte(len(h.SPS) >> 8)
-	b[10+len(h.SPS)] = byte(len(h.SPS) & 0xff)
-	copy(b[11+len(h.SPS):], h.SPS)
+	b[9+len(h.SPS)] = byte(len(h.PPS) >> 8)
+	b[10+len(h.SPS)] = byte(len(h.PPS) & 0xff)
+	copy(b[11+len(h.SPS):], h.PPS)
 	return b, nil
 }

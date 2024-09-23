@@ -20,7 +20,7 @@ func NewCodecConfig(codecType types.CodecType) (Config, error) {
 		return NewOpusConfig(OpusParameters{
 			Channels:   2,
 			SampleRate: 48000,
-			SampleFmt:  int(avutil.AV_SAMPLE_FMT_S16),
+			SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLT),
 		}), nil
 	default:
 		return nil, errors.New("invalid codec type")

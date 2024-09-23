@@ -21,3 +21,7 @@ func AvChannelLayoutDefault(chLayout *AvChannelLayout, nbChannels int) {
 func FromCAvChannelLayout(chLayout C.struct_AVChannelLayout) AvChannelLayout {
 	return (AvChannelLayout)(chLayout)
 }
+
+func (a *AvChannelLayout) NbChannels() int {
+	return int(a.nb_channels)
+}

@@ -10,6 +10,7 @@ import (
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs/engines"
+	"mediaserver-go/parsers/format"
 	"mediaserver-go/utils/types"
 	"strings"
 )
@@ -95,7 +96,10 @@ func (h *H264) Equals(codec Codec) bool {
 	if h.Width() != h264Codec.Width() || h.Height() != h264Codec.Height() || h.PixelFormat() != h264Codec.PixelFormat() {
 		return false
 	}
-	if !bytes.Equal(h.SPS(), h264Codec.SPS()) || bytes.Equal(h.PPS(), h264Codec.PPS()) {
+	if !bytes.Equal(h.SPS(), h264Codec.SPS()) {
+		return false
+	}
+	if !bytes.Equal(h.PPS(), h264Codec.PPS()) {
 		return false
 	}
 	return true
@@ -166,7 +170,6 @@ func (h *H264) profile() string {
 }
 
 func makePixelFmt(spsSet *h264.SPS) int {
-	fmt.Println("[TESTDEBUG] makePixelFmt.. spsSet.ChromaFormatIdc:", spsSet.ChromaFormatIdc)
 	switch spsSet.ChromaFormatIdc {
 	case 0:
 		return avutil.AV_PIX_FMT_GRAY8
@@ -191,16 +194,6 @@ func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetProfile(int(h.profileIDC()))
 	codecCtx.SetLevel(int(h.level()))
 	codecCtx.SetExtraData(h.ExtraData())
-
-	fmt.Println("[TESTDEBUG] SetCodecID:", types.CodecIDFromType(h.CodecType()))
-	fmt.Println("[TESTDEBUG] SetCodecType:", types.MediaTypeToFFMPEG(h.MediaType()))
-	fmt.Println("[TESTDEBUG] SetWidth:", h.Width())
-	fmt.Println("[TESTDEBUG] SetHeight:", h.Height())
-	fmt.Println("[TESTDEBUG] SetTimeBase:", avutil.NewRational(1, int(h.FPS())))
-	fmt.Println("[TESTDEBUG] SetPixelFormat:", h.PixelFormat())
-	fmt.Println("[TESTDEBUG] SetProfile:", int(h.profileIDC()))
-	fmt.Println("[TESTDEBUG] SetLevel:", int(h.level()))
-	fmt.Println("[TESTDEBUG] SetExtraData:", h.ExtraData())
 }
 
 func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
@@ -240,4 +233,8 @@ func (h *H264) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 			},
 		},
 	}, nil
+}
+
+func (h *H264) BitStreamFilter(data []byte) [][]byte {
+	return format.GetAUFromAVC(data)
 }

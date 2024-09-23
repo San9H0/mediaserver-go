@@ -3,6 +3,8 @@ package hubs
 import (
 	"errors"
 	"go.uber.org/zap"
+	"golang.org/x/exp/maps"
+	"mediaserver-go/hubs/transcoders"
 	"mediaserver-go/utils/log"
 	"sync"
 	"time"
@@ -124,8 +126,30 @@ func (t *HubSource) GetTrack(codec codecs.Codec) *Track {
 
 	track, ok := t.tracks[codec.String()]
 	if !ok {
+		keys := maps.Keys(t.tracks)
+		log.Logger.Info("GetTrack",
+			zap.Strings("keys", keys),
+			zap.String("codec", codec.String()),
+		)
 		track = NewTrack(t.mediaType, codec.CodecType())
 		track.SetCodec(codec)
+		if !t.codec.Equals(codec) {
+			log.Logger.Info("NewAudioTranscoder",
+				zap.String("sourceCodec", t.codec.String()),
+				zap.String("targetCodec", codec.String()),
+			)
+			tanscoder := transcoders.NewAudioTranscoder()
+			if err := tanscoder.Setup(t.codec, codec); err != nil {
+				log.Logger.Error("transcoder setup failed", zap.Error(err))
+				return nil
+			}
+			track.transcoder = tanscoder
+		} else {
+			log.Logger.Info("No Transcoder",
+				zap.String("sourceCodec", t.codec.String()),
+				zap.String("targetCodec", codec.String()),
+			)
+		}
 		go track.Run()
 		t.tracks[codec.String()] = track
 	}

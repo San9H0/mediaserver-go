@@ -28,6 +28,6 @@ func (a *AvAudioFifo) AvAudioFifoRead(data **uint8, nbSamples int) int {
 		C.int(nbSamples)))
 }
 
-func (a *AvAudioFifo) AvAudioFifoFree() {
-	C.av_audio_fifo_free((*C.struct_AVAudioFifo)(a))
+func AvAudioFifoFree(a *AvAudioFifo) {
+	C.av_audio_fifo_free((*C.struct_AVAudioFifo)(unsafe.Pointer(a)))
 }

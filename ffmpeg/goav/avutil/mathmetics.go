@@ -20,3 +20,7 @@ func AvRescaleQ(a int64, bq, cq Rational) int64 {
 func AvRescaleQRound(a int64, bq, cq Rational, r int) int64 {
 	return int64(C.av_rescale_q_rnd(C.int64_t(a), (C.struct_AVRational)(bq), (C.struct_AVRational)(cq), C.enum_AVRounding(r)))
 }
+
+func AvRescaleRnd(a int, b int, c int, r int) int {
+	return int(C.av_rescale_rnd(C.int64_t(a), C.int64_t(b), C.int64_t(c), C.enum_AVRounding(r)))
+}

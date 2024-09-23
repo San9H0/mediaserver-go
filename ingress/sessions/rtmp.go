@@ -8,6 +8,7 @@ import (
 	"github.com/yutopp/go-rtmp/message"
 	"go.uber.org/zap"
 	"io"
+	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/parsers/format"
@@ -26,18 +27,15 @@ type RTMPSession struct {
 	stream    *hubs.Stream
 	extraData codecs.H264Config
 
-	videoSource   *hubs.HubSource
-	audioSource   *hubs.HubSource
-	prevTimestamp uint32
-
-	testTranscoder *hubs.AudioTranscoder
+	videoSource *hubs.HubSource
+	audioSource *hubs.HubSource
+	prevVideoTS uint32
+	prevAudioTS uint32
 }
 
 func NewRTMPSession(hub *hubs.Hub) *RTMPSession {
 	return &RTMPSession{
 		hub: hub,
-
-		testTranscoder: hubs.NewAudioTranscoder(),
 	}
 }
 
@@ -167,12 +165,12 @@ func (h *RTMPSession) OnAudio(timestamp uint32, payload io.Reader) error {
 		codec := codecs.NewAAC(codecs.AACParameters{
 			SampleRate: config.SamplingRate,
 			Channels:   config.Channel,
-			SampleFmt:  8,
+			SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLTP),
 		})
 		h.audioSource.SetCodec(codec)
 	case flvtag.AACPacketTypeRaw:
-		duration := timestamp - h.prevTimestamp
-		h.prevTimestamp = timestamp
+		duration := timestamp - h.prevAudioTS
+		h.prevAudioTS = timestamp
 		h.audioSource.Write(units.Unit{
 			Payload:  data,
 			PTS:      int64(timestamp),
@@ -209,8 +207,8 @@ func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
 		}
 		h.videoSource.SetCodec(h264Codecs)
 	case flvtag.AVCPacketTypeNALU:
-		duration := timestamp - h.prevTimestamp
-		h.prevTimestamp = timestamp
+		duration := timestamp - h.prevVideoTS
+		h.prevVideoTS = timestamp
 		for _, au := range format.GetAUFromAVC(body) {
 			h.videoSource.Write(units.Unit{
 				Payload:  au,
@@ -245,5 +243,6 @@ func (h *RTMPSession) OnClose() {
 	if h.streamKey == "" {
 		return
 	}
+	h.stream.Close()
 	h.hub.RemoveStream(h.streamKey)
 }

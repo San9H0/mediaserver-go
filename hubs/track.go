@@ -4,6 +4,7 @@ import (
 	"errors"
 	"go.uber.org/zap"
 	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/hubs/transcoders"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
@@ -15,30 +16,46 @@ import (
 type Track struct {
 	mu sync.RWMutex
 
-	ch        chan units.Unit
-	closed    bool
-	consumers []chan units.Unit
+	transcoder *transcoders.AudioTranscoder
 
 	mediaType types.MediaType
 	codecType types.CodecType
+	ch        chan units.Unit
+	consumers []chan units.Unit
 
+	set      bool
 	codecset chan codecs.Codec
 	codec    codecs.Codec
 }
 
 func NewTrack(mediaType types.MediaType, codecType types.CodecType) *Track {
 	return &Track{
-		ch:        make(chan units.Unit, 100),
 		mediaType: mediaType,
 		codecType: codecType,
+		ch:        make(chan units.Unit, 100),
 		codecset:  make(chan codecs.Codec),
 	}
 }
 
 func (t *Track) Run() {
+	defer func() {
+		log.Logger.Info("Track closed", zap.Any("mediaType", t.mediaType), zap.Any("codecType", t.codecType))
+		if t.transcoder != nil {
+			t.transcoder.Close()
+		}
+	}()
 	for {
 		select {
-		case unit := <-t.ch:
+		case unit, ok := <-t.ch:
+			if !ok {
+				return
+			}
+			if t.transcoder != nil {
+				for _, u := range t.transcoder.Transcode(unit) {
+					t.Write(u)
+				}
+				continue
+			}
 			t.Write(unit)
 		}
 	}
@@ -70,10 +87,10 @@ func (t *Track) SetCodec(c codecs.Codec) {
 
 	log.Logger.Info("SetCodec called", zap.Any("codec", c.CodecType()))
 	t.codec = c
-	if t.closed {
+	if t.set {
 		return
 	}
-	t.closed = true
+	t.set = true
 	close(t.codecset)
 }
 

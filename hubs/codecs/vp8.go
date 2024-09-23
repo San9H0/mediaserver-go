@@ -121,3 +121,7 @@ func (v *VP8) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, er
 		},
 	}, nil
 }
+
+func (v *VP8) BitStreamFilter(data []byte) [][]byte {
+	return [][]byte{data}
+}

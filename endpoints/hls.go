@@ -43,21 +43,18 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			fmt.Println("[TESDTEBUG] llhls video.m3u8 .. ", string(b))
 			return c.Blob(http.StatusOK, "application/vnd.apple.mpegurl", b)
 		case "init.mp4":
 			b, err := handle.GetPayload(target)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			fmt.Println("[TESTDEBUG] llhls target:", target, ",  len:", len(b))
 			return c.Blob(http.StatusOK, "video/mp4", b)
 		default:
 			b, err := handle.GetPayload(target)
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
-			fmt.Println("[TESTDEBUG] llhls target:", target, ",  len:", len(b))
 			return c.Blob(http.StatusOK, "video/mp4", b)
 		}
 	})

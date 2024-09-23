@@ -209,11 +209,9 @@ func (h *HLSHandler) GetMediaM3U8LLHLS(sn, part string) ([]byte, error) {
 		output = fmt.Sprintf("output_%s_%s.m4s", sn, part)
 	}
 
-	fmt.Println("[TESTDEBUG] 1 lock??")
 	h.mu.Lock()
 	media := h.loadOrStoreMedia(output)
 	h.mu.Unlock()
-	fmt.Println("[TESTDEBUG] 1 lock end")
 
 	select {
 	case <-time.After(4 * time.Second):
@@ -221,8 +219,6 @@ func (h *HLSHandler) GetMediaM3U8LLHLS(sn, part string) ([]byte, error) {
 	case <-media.closeCh:
 	}
 
-	fmt.Println("[TESTDEBUG] 2 lock??")
-	defer fmt.Println("[TESTDEBUG] 2 lock end")
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.llhlsMedia.Marshal()

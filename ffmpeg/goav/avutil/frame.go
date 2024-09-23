@@ -16,6 +16,17 @@ func (f *Frame) GetDataP() **uint8 {
 	return (**uint8)(unsafe.Pointer(&f.data[0]))
 }
 
+func (f *Frame) GetData() []byte {
+	result := make([]byte, f.NbSamples()*f.ChLayout().NbChannels()*2)
+	for i := 0; i < f.NbSamples(); i++ {
+		for ch := 0; ch < f.ChLayout().NbChannels(); ch++ {
+			result[ch+i*2+0] = *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(f.GetDataP())) + uintptr(ch)*2 + uintptr(i)*2))
+			result[ch+i*2+1] = *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(f.GetDataP())) + uintptr(ch)*2 + uintptr(i)*2 + 1))
+		}
+	}
+	return result
+}
+
 func (f *Frame) NbSamples() int {
 	return int(f.nb_samples)
 }

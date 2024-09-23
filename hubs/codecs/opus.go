@@ -75,6 +75,10 @@ func (o *Opus) SampleRate() int {
 	return o.sampleRate
 }
 
+func (o *Opus) ExtraData() []byte {
+	return nil
+}
+
 func (o *Opus) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetCodecID(types.CodecIDFromType(types.CodecTypeOpus))
 	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(types.MediaTypeAudio))
@@ -92,7 +96,7 @@ func (o *Opus) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 		MimeType:     types.MimeTypeFromCodecType(o.CodecType()),
 		ClockRate:    uint32(o.SampleRate()),
 		Channels:     uint16(o.Channels()),
-		SDPFmtpLine:  "minptime=10;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1",
+		SDPFmtpLine:  "minptime=20;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1",
 		RTCPFeedback: nil,
 	}, nil
 }
@@ -124,4 +128,8 @@ func (o *Opus) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 			},
 		},
 	}, nil
+}
+
+func (o *Opus) BitStreamFilter(data []byte) [][]byte {
+	return [][]byte{data}
 }
