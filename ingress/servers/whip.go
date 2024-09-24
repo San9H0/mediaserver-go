@@ -3,10 +3,12 @@ package servers
 import (
 	"context"
 	pion "github.com/pion/webrtc/v3"
+	"go.uber.org/zap"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/ingress/sessions"
 	"mediaserver-go/utils/dto"
+	"mediaserver-go/utils/log"
 )
 
 type WHIPServer struct {
@@ -38,9 +40,15 @@ func (w *WHIPServer) StartSession(streamID string, req dto.WHIPRequest) (dto.WHI
 	if err != nil {
 		return dto.WHIPResponse{}, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	_ = cancel
-	go session.Run(ctx)
+
+	go func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := session.Run(ctx); err != nil {
+			log.Logger.Error("WHIP session error", zap.Error(err))
+		}
+	}()
+
 	return dto.WHIPResponse{
 		Answer: session.Answer(),
 	}, nil

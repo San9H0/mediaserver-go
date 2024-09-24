@@ -7,6 +7,7 @@ import (
 	"mediaserver-go/hubs/transcoders"
 	"mediaserver-go/utils/log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"mediaserver-go/hubs/codecs"
@@ -15,17 +16,24 @@ import (
 	"mediaserver-go/utils/units"
 )
 
+var (
+	errFailedToSetTranscodeCodec = errors.New("failed to set transcode codec")
+)
+
 type HubSource struct {
-	mu sync.RWMutex
+	mu     sync.RWMutex
+	closed atomic.Bool
 
 	tracks map[string]*Track
 
 	mediaType types.MediaType
 	codecType types.CodecType
 
-	set      bool
-	codecset chan codecs.Codec
-	codec    codecs.Codec
+	set            bool
+	codecset       chan codecs.Codec
+	codec          codecs.Codec
+	transcodeCodec codecs.Codec
+	transcoder     *transcoders.VideoTranscoder
 }
 
 func NewHubSource(mediaType types.MediaType, codecType types.CodecType) *HubSource {
@@ -41,8 +49,16 @@ func (t *HubSource) Close() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.closed.Swap(true) {
+		return
+	}
+
 	for _, track := range t.tracks {
 		track.Close()
+	}
+
+	if t.transcoder != nil {
+		t.transcoder.Close()
 	}
 }
 
@@ -58,6 +74,10 @@ func (t *HubSource) SetCodec(c codecs.Codec) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	if t.closed.Load() {
+		return
+	}
+
 	log.Logger.Info("SetCodec called", zap.Any("codec", c.CodecType()))
 	t.codec = c
 	if t.set {
@@ -65,6 +85,24 @@ func (t *HubSource) SetCodec(c codecs.Codec) {
 	}
 	t.set = true
 	close(t.codecset)
+}
+
+func (t *HubSource) SetTranscodeCodec(c codecs.Codec) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.closed.Load() {
+		return errors.New("hub source closed")
+	}
+
+	log.Logger.Info("SetTranscodeCodec called", zap.Any("codec", c.CodecType()))
+	t.transcodeCodec = c
+
+	t.transcoder = transcoders.NewVideoTranscoder()
+	if err := t.transcoder.Setup(t.codec, t.transcodeCodec); err != nil {
+		log.Logger.Error("transcoder setup failed", zap.Error(err))
+	}
+	return nil
 }
 
 func (t *HubSource) Codec() (codecs.Codec, error) {
@@ -112,11 +150,20 @@ func (t *HubSource) AudioCodec() (codecs.AudioCodec, error) {
 }
 
 func (t *HubSource) Write(unit units.Unit) {
+	var us []units.Unit
+	if t.transcoder != nil {
+		us = t.transcoder.Transcode(unit)
+	} else {
+		us = []units.Unit{unit}
+	}
+
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
 	for _, track := range t.tracks {
-		utils.SendOrDrop(track.ch, unit)
+		for _, u := range us {
+			utils.SendOrDrop(track.ch, u)
+		}
 	}
 }
 

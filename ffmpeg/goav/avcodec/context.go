@@ -99,6 +99,35 @@ func (cc *CodecContext) SetTimeBase(rational avutil.Rational) {
 	cc.time_base.den = C.int(rational.Den())
 }
 
+func (cc *CodecContext) FrameRate() avutil.Rational {
+	return avutil.NewRational(int(cc.framerate.num), int(cc.framerate.den))
+}
+
+func (cc *CodecContext) SetFrameRate(r avutil.Rational) {
+	cc.framerate.num = C.int(r.Num())
+	cc.framerate.den = C.int(r.Den())
+}
+
+func (cc *CodecContext) MaxBFrames() int {
+	return int(cc.max_b_frames)
+}
+
+func (cc *CodecContext) SetMaxBFrames(b int) {
+	cc.max_b_frames = C.int(b)
+}
+
+func (cc *CodecContext) GOP() int {
+	return int(cc.gop_size)
+}
+
+func (cc *CodecContext) SetGOP(gopSize int) {
+	cc.gop_size = C.int(gopSize)
+}
+
+func (cc *CodecContext) PixelFormat() avutil.PixelFormat {
+	return avutil.PixelFormat(cc.pix_fmt)
+}
+
 func (cc *CodecContext) SetPixelFormat(pixFmt avutil.PixelFormat) {
 	cc.pix_fmt = C.enum_AVPixelFormat(pixFmt)
 }
@@ -127,4 +156,12 @@ func (cc *CodecContext) ChLayout() *avutil.AvChannelLayout {
 
 func (cc *CodecContext) AvCodecReceiveFrame(frame *avutil.Frame) int {
 	return int(C.avcodec_receive_frame((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVFrame)(unsafe.Pointer(frame))))
+}
+
+func (cc *CodecContext) AvCodecParametersToContext(param *AvCodecParameters) int {
+	return int(C.avcodec_parameters_to_context((*C.struct_AVCodecContext)(unsafe.Pointer(cc)), (*C.struct_AVCodecParameters)(unsafe.Pointer(param))))
+}
+
+func (cc *CodecContext) PrivData() unsafe.Pointer {
+	return unsafe.Pointer(cc.priv_data)
 }

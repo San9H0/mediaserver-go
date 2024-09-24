@@ -12,79 +12,79 @@ import (
 	"strings"
 )
 
-var _ VideoCodec = (*VP8)(nil)
+var _ VideoCodec = (*AV1)(nil)
 
-type VP8 struct {
+type AV1 struct {
 	width, height int
 }
 
-func NewVP8(width, height int) (*VP8, error) {
-	return &VP8{
+func NewAV1(width, height int) (*AV1, error) {
+	return &AV1{
 		width: width, height: height,
 	}, nil
 }
 
-func (v *VP8) Clone() Codec {
-	return &VP8{
+func (v *AV1) Clone() Codec {
+	return &AV1{
 		width: v.width, height: v.height,
 	}
 }
 
-func (v *VP8) Equals(codec Codec) bool {
+func (v *AV1) Equals(codec Codec) bool {
 	if codec == nil {
 		return false
 	}
-	vp8Codec, ok := codec.(*VP8)
+	AV1Codec, ok := codec.(*AV1)
 	if !ok {
 		return false
 	}
-	if v.CodecType() != vp8Codec.CodecType() || v.MediaType() != vp8Codec.MediaType() {
+	if v.CodecType() != AV1Codec.CodecType() || v.MediaType() != AV1Codec.MediaType() {
 		return false
 	}
-	if v.Width() != vp8Codec.Width() || v.Height() != vp8Codec.Height() {
+	if v.Width() != AV1Codec.Width() || v.Height() != AV1Codec.Height() {
 		return false
 	}
 	return true
 }
 
-func (v *VP8) String() string {
-	return fmt.Sprintf("VP8. Width: %d, Height: %d", v.width, v.height)
+func (v *AV1) String() string {
+	return fmt.Sprintf("AV1. Width: %d, Height: %d", v.width, v.height)
 }
 
-func (v *VP8) MediaType() types.MediaType {
+func (v *AV1) MediaType() types.MediaType {
 	return types.MediaTypeVideo
 }
 
-func (v *VP8) CodecType() types.CodecType {
-	return types.CodecTypeVP8
+func (v *AV1) CodecType() types.CodecType {
+	return types.CodecTypeAV1
 }
 
-func (v *VP8) Width() int {
+func (v *AV1) Width() int {
 	return v.width
 }
 
-func (v *VP8) Height() int {
+func (v *AV1) Height() int {
 	return v.height
 }
 
-func (v *VP8) ClockRate() uint32 {
+func (v *AV1) ClockRate() uint32 {
 	return 90000
 }
 
-func (v *VP8) FPS() float64 {
+func (v *AV1) FPS() float64 {
 	return 30
 }
 
-func (v *VP8) PixelFormat() int {
+func (v *AV1) PixelFormat() int {
 	return avutil.AV_PIX_FMT_YUV420P
 }
 
 // ExtraData use readonly
-func (v *VP8) ExtraData() []byte {
+func (v *AV1) ExtraData() []byte {
 	return nil
 }
 
-func (v *VP8) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (v *AV1) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetCodecID(types.CodecIDFromType(v.CodecType()))
 	codecCtx.SetCodecType(types.MediaTypeToFFMPEG(v.MediaType()))
 	codecCtx.SetWidth(v.Width())
@@ -94,17 +94,17 @@ func (v *VP8) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetExtraData(v.ExtraData())
 }
 
-func (v *VP8) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
+func (v *AV1) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 	return pion.RTPCodecCapability{
 		MimeType:     types.MimeTypeFromCodecType(v.CodecType()),
 		ClockRate:    v.ClockRate(),
 		Channels:     0,
-		SDPFmtpLine:  "",
+		SDPFmtpLine:  "level-idx=5;profile=0;tier=0",
 		RTCPFeedback: nil,
 	}, nil
 }
 
-func (v *VP8) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error) {
+func (v *AV1) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error) {
 	payloadType := 97
 	return engines.RTPCodecParameters{
 		PayloadType: uint8(payloadType),
@@ -129,10 +129,10 @@ func (v *VP8) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, er
 	}, nil
 }
 
-func (v *VP8) SetVideoTranscodeInfo(info VideoTranscodeInfo) {
+func (v *AV1) SetVideoTranscodeInfo(info VideoTranscodeInfo) {
 	return
 }
 
-func (v *VP8) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
+func (v *AV1) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
 	return bitstreamfilter.NewBitStream(v.CodecType())
 }

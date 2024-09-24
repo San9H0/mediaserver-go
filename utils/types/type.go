@@ -60,6 +60,7 @@ const (
 	CodecTypeUnknown CodecType = "unknown"
 	CodecTypeH264    CodecType = "h264"
 	CodecTypeVP8     CodecType = "vp8"
+	CodecTypeAV1     CodecType = "av1"
 	CodecTypeAAC     CodecType = "aac"
 	CodecTypeOpus    CodecType = "opus"
 )
@@ -70,6 +71,8 @@ func CodecTypeFromFFMPEG(codecID avcodec.CodecID) CodecType {
 		return CodecTypeH264
 	case avcodec.AV_CODEC_ID_VP8:
 		return CodecTypeVP8
+	case avcodec.AV_CODEC_ID_AV1:
+		return CodecTypeAV1
 	case avcodec.AV_CODEC_ID_AAC:
 		return CodecTypeAAC
 	case avcodec.AV_CODEC_ID_OPUS:
@@ -85,6 +88,8 @@ func CodecIDFromType(codecType CodecType) avcodec.CodecID {
 		return avcodec.AV_CODEC_ID_H264
 	case CodecTypeVP8:
 		return avcodec.AV_CODEC_ID_VP8
+	case CodecTypeAV1:
+		return avcodec.AV_CODEC_ID_AV1
 	case CodecTypeAAC:
 		return avcodec.AV_CODEC_ID_AAC
 	case CodecTypeOpus:
@@ -100,6 +105,8 @@ func CodecTypeFromMimeType(mimeType string) CodecType {
 		return CodecTypeH264
 	case "video/vp8":
 		return CodecTypeVP8
+	case "video/av1":
+		return CodecTypeAV1
 	case "audio/aac":
 		return CodecTypeAAC
 	case "audio/opus":
@@ -114,6 +121,8 @@ func MimeTypeFromCodecType(codecType CodecType) string {
 		return pion.MimeTypeH264
 	case CodecTypeVP8:
 		return pion.MimeTypeVP8
+	case CodecTypeAV1:
+		return pion.MimeTypeAV1
 	case CodecTypeAAC:
 		return "audio/aac"
 	case CodecTypeOpus:

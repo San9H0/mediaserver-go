@@ -12,6 +12,10 @@ func AvFrameAlloc() *Frame {
 	return (*Frame)(C.av_frame_alloc())
 }
 
+func (f *Frame) AvFrameFree() {
+	C.av_frame_free((**C.struct_AVFrame)(unsafe.Pointer(&f)))
+}
+
 func (f *Frame) GetDataP() **uint8 {
 	return (**uint8)(unsafe.Pointer(&f.data[0]))
 }
@@ -73,4 +77,8 @@ func (f *Frame) ChLayout() *AvChannelLayout {
 
 func (f *Frame) AvFrameGetBuffer(n int) int {
 	return int(C.av_frame_get_buffer((*C.struct_AVFrame)(unsafe.Pointer(f)), C.int(n)))
+}
+
+func (f *Frame) SetPictType(pict_type AvPictureType) {
+	f.pict_type = C.enum_AVPictureType(pict_type)
 }

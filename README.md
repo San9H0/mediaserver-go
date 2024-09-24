@@ -33,6 +33,9 @@ https://getstream.io/resources/projects/webrtc/advanced/bitrates-traffic/
 
 
 ### ffmpeg
+https://github.com/leandromoreira/ffmpeg-libav-tutorial
+
+
 ffmpeg -re -i ./test.mp4 -an -c:v libx264 -x264opts bframes=0 -x264-params keyint=30 -bsf:v h264_mp4toannexb -payload_type 127 -f rtp rtp://127.0.0.1:5000
 
 ffmpeg -i input.mp4 -c copy -movflags frag_keyframe+empty_moov+default_base_moof output_fmp4.mp4

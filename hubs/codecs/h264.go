@@ -9,6 +9,7 @@ import (
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/parsers/format"
 	"mediaserver-go/utils/types"
@@ -30,6 +31,9 @@ type H264 struct {
 	pixelFmt      int
 
 	config *H264Config
+
+	// transcoding info
+	transcodingInfo *VideoTranscodeInfo
 }
 
 func NewH264FromConfig(config *H264Config) (Codec, error) {
@@ -80,6 +84,19 @@ func NewH264(sps, pps []byte) (*H264, error) {
 		pixelFmt: makePixelFmt(spsSet),
 		config:   config,
 	}, nil
+}
+
+func (h *H264) Clone() Codec {
+	return &H264{
+		sps:             append(make([]byte, 0, len(h.sps)), h.sps...),
+		pps:             append(make([]byte, 0, len(h.pps)), h.pps...),
+		spsSet:          h.spsSet,
+		width:           h.width,
+		height:          h.height,
+		pixelFmt:        h.pixelFmt,
+		config:          h.config,
+		transcodingInfo: h.transcodingInfo,
+	}
 }
 
 func (h *H264) Equals(codec Codec) bool {
@@ -194,6 +211,17 @@ func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetProfile(int(h.profileIDC()))
 	codecCtx.SetLevel(int(h.level()))
 	codecCtx.SetExtraData(h.ExtraData())
+
+	if h.transcodingInfo != nil {
+		fmt.Println("[TESTDEBUG] h.transcodingInfo.GOPSize:", h.transcodingInfo.GOPSize, ", fps:", h.transcodingInfo.FPS, ", maxbframe:", h.transcodingInfo.MaxBFrameSize)
+		codecCtx.SetGOP(h.transcodingInfo.GOPSize)
+		codecCtx.SetFrameRate(avutil.NewRational(h.transcodingInfo.FPS, 1))
+		codecCtx.SetMaxBFrames(h.transcodingInfo.MaxBFrameSize)
+		avutil.AvOptSet(codecCtx.PrivData(), "ref", "1", 0)
+		avutil.AvOptSet(codecCtx.PrivData(), "rc-lookahead", "0", 0)
+		avutil.AvOptSet(codecCtx.PrivData(), "mbtree", "0", 0)
+
+	}
 }
 
 func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
@@ -235,6 +263,18 @@ func (h *H264) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 	}, nil
 }
 
+func (h *H264) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
+	return bitstreamfilter.NewBitStream(h.CodecType())
+}
+
+func (h *H264) BitStreamFilter2(data []byte) [][]byte {
+	return format.GetAUFromAVC(data)
+}
+
 func (h *H264) BitStreamFilter(data []byte) [][]byte {
 	return format.GetAUFromAVC(data)
+}
+
+func (h *H264) SetVideoTranscodeInfo(info VideoTranscodeInfo) {
+	h.transcodingInfo = &info
 }

@@ -14,14 +14,16 @@ import "unsafe"
 //#include <libavutil/avutil.h>
 //#include <libavutil/samplefmt.h>
 //#include <stdlib.h>
+//#include <stdbool.h>
 //char * fn_av_fourcc2str(int fourcc) {
 //  return av_fourcc2str(fourcc);
 //}
 //char *fn_av_err2str(int errnum) {
 //  return av_err2str(errnum);
 //}
-import "C"
-
+//bool is_again(int errnum) {
+//  return errnum == AVERROR(EAGAIN) || errnum == AVERROR_EOF;
+//}
 import "C"
 
 type (
@@ -34,6 +36,17 @@ type (
 	File          C.FILE
 	Frame         C.struct_AVFrame
 	AvAudioFifo   C.struct_AVAudioFifo
+)
+
+const (
+	AV_PICTURE_TYPE_NONE AvPictureType = C.AV_PICTURE_TYPE_NONE ///< Undefined
+	AV_PICTURE_TYPE_I    AvPictureType = C.AV_PICTURE_TYPE_I    ///< Intra
+	AV_PICTURE_TYPE_P    AvPictureType = C.AV_PICTURE_TYPE_P    ///< Predicted
+	AV_PICTURE_TYPE_B    AvPictureType = C.AV_PICTURE_TYPE_B    ///< Bi-dir predicted
+	AV_PICTURE_TYPE_S    AvPictureType = C.AV_PICTURE_TYPE_S    ///< S(GMC)-VOP MPEG-4
+	AV_PICTURE_TYPE_SI   AvPictureType = C.AV_PICTURE_TYPE_SI   ///< Switching Intra
+	AV_PICTURE_TYPE_SP   AvPictureType = C.AV_PICTURE_TYPE_SP   ///< Switching Predicted
+	AV_PICTURE_TYPE_BI   AvPictureType = C.AV_PICTURE_TYPE_BI   ///< BI type
 )
 
 const (
@@ -98,4 +111,8 @@ func AvFourcc2str(fourcc int) string {
 
 func AvErr2str(errnum int) string {
 	return C.GoString(C.fn_av_err2str(C.int(errnum)))
+}
+
+func AvAgain(errnum int) bool {
+	return bool(C.is_again(C.int(errnum)))
 }

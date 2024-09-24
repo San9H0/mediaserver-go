@@ -7,6 +7,20 @@ package avutil
 import "C"
 import "unsafe"
 
+func AvOptSet(obj unsafe.Pointer, name string, value string, searchFlags int) int {
+	cname := (*C.char)(nil)
+	if name != "" {
+		cname = C.CString(name)
+		defer C.free(unsafe.Pointer(cname))
+	}
+	cvalue := (*C.char)(nil)
+	if value != "" {
+		cvalue = C.CString(value)
+		defer C.free(unsafe.Pointer(cvalue))
+	}
+	return int(C.av_opt_set(obj, cname, cvalue, C.int(searchFlags)))
+}
+
 func AvOptSetInt(obj unsafe.Pointer, name string, value int, searchFlags int) int {
 	cname := (*C.char)(nil)
 	if name != "" {

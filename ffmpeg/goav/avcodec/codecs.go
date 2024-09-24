@@ -155,6 +155,7 @@ const (
 	AV_CODEC_ID_H263I             = int(C.AV_CODEC_ID_H263I)
 	AV_CODEC_ID_H263P             = int(C.AV_CODEC_ID_H263P)
 	AV_CODEC_ID_H264              = CodecID(C.AV_CODEC_ID_H264)
+	AV_CODEC_ID_AV1               = CodecID(C.AV_CODEC_ID_AV1)
 	AV_CODEC_ID_H265              = int(C.AV_CODEC_ID_H265)
 	AV_CODEC_ID_HDMV_PGS_SUBTITLE = int(C.AV_CODEC_ID_HDMV_PGS_SUBTITLE)
 	AV_CODEC_ID_HEVC              = int(C.AV_CODEC_ID_HEVC)

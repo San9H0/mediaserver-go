@@ -66,15 +66,18 @@ func (h *Handler) Answer() string {
 }
 
 func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
+	fmt.Println("[TESTDEBUG] init. .sources:", len(sources))
 	var negotidated []*hubs.Track
 	me := &pion.MediaEngine{}
 	for _, source := range sources {
 		switch source.MediaType() {
 		case types.MediaTypeVideo:
 			codec, err := source.Codec()
+			fmt.Println("[TESTDEBUG] codec err:", err)
 			if err != nil {
 				return err
 			}
+			fmt.Println("[TESTDEBUG] codec:", codec)
 			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
 				return err

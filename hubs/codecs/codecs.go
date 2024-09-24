@@ -4,6 +4,7 @@ import (
 	"errors"
 	"mediaserver-go/ffmpeg/goav/avformat"
 	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/codecs/bitstreamfilter"
 	"mediaserver-go/parsers/format"
 
 	pion "github.com/pion/webrtc/v3"
@@ -20,6 +21,7 @@ var (
 type Codec interface {
 	String() string
 	Equals(codec Codec) bool
+	Clone() Codec
 
 	CodecType() types.CodecType
 	MediaType() types.MediaType
@@ -28,7 +30,7 @@ type Codec interface {
 	WebRTCCodecCapability() (pion.RTPCodecCapability, error)
 	RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, error)
 
-	BitStreamFilter([]byte) [][]byte
+	GetBitStreamFilter() bitstreamfilter.BitStreamFilter
 	ExtraData() []byte
 }
 
@@ -43,6 +45,8 @@ type AudioCodec interface {
 
 type VideoCodec interface {
 	Codec
+
+	SetVideoTranscodeInfo(info VideoTranscodeInfo)
 
 	Width() int
 	Height() int
@@ -107,4 +111,10 @@ func GetExtension(videoCodec VideoCodec, audioCodec AudioCodec) (string, error) 
 		}
 	}
 	return extension, nil
+}
+
+type VideoTranscodeInfo struct {
+	GOPSize       int
+	FPS           int
+	MaxBFrameSize int
 }

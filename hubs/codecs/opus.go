@@ -6,6 +6,7 @@ import (
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/ffmpeg/goav/avcodec"
 	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils/types"
 	"strings"
@@ -30,6 +31,14 @@ func NewOpus(o OpusParameters) *Opus {
 		channels:   o.Channels,
 		sampleFmt:  o.SampleFmt,
 		sampleRate: o.SampleRate,
+	}
+}
+
+func (o *Opus) Clone() Codec {
+	return &Opus{
+		channels:   o.channels,
+		sampleFmt:  o.sampleFmt,
+		sampleRate: o.sampleRate,
 	}
 }
 
@@ -130,6 +139,6 @@ func (o *Opus) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 	}, nil
 }
 
-func (o *Opus) BitStreamFilter(data []byte) [][]byte {
-	return [][]byte{data}
+func (o *Opus) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
+	return bitstreamfilter.NewBitStream(o.CodecType())
 }

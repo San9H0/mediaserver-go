@@ -9,8 +9,9 @@ import (
 func GetWebRTCCapabilities() map[pion.RTPCodecType][]pion.RTPCodecParameters {
 	r := make(map[pion.RTPCodecType][]pion.RTPCodecParameters)
 	r[pion.RTPCodecTypeAudio] = append(r[pion.RTPCodecTypeAudio], opusRTPCodecCapabilities())
+	r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], av1RTPCodecCapabilities())
 	//r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], vp8RTPCodecCapabilities())
-	r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], h264RTPCodecCapabilities()...)
+	//r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], h264RTPCodecCapabilities()...)
 	return r
 }
 
@@ -126,5 +127,18 @@ func vp8RTPCodecCapabilities() pion.RTPCodecParameters {
 			RTCPFeedback: nil,
 		},
 		PayloadType: 117,
+	}
+}
+
+func av1RTPCodecCapabilities() pion.RTPCodecParameters {
+	return pion.RTPCodecParameters{
+		RTPCodecCapability: pion.RTPCodecCapability{
+			MimeType:     pion.MimeTypeAV1,
+			ClockRate:    90000,
+			Channels:     0,
+			SDPFmtpLine:  "level-idx=5;profile=0;tier=0",
+			RTCPFeedback: nil,
+		},
+		PayloadType: 118,
 	}
 }
