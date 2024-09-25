@@ -2,7 +2,6 @@ package parsers
 
 import (
 	"errors"
-	"fmt"
 	"github.com/pion/rtp"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/parsers/rtppackets"
@@ -21,13 +20,12 @@ func NewRTPParser(codecConfig codecs.Config, cb func(codec codecs.Codec)) (RTPPa
 	var parser RTPParser
 	switch config := codecConfig.(type) {
 	case *codecs.VP8Config:
-		fmt.Println("[TESTDEBUG] RTPParser VP8")
 		parser = rtppackets.NewVP8Parser(config)
 	case *codecs.H264Config:
-		fmt.Println("[TESTDEBUG] RTPParser H264")
 		parser = rtppackets.NewH264Parser(config)
+	case *codecs.AV1Config:
+		parser = rtppackets.NewAV1Parser(config)
 	case *codecs.OpusConfig:
-		fmt.Println("[TESTDEBUG] RTPParser Opus")
 		parser = rtppackets.NewOpusParser(config)
 	default:
 		return nil, errInvalidCodecType

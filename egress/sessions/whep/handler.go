@@ -66,18 +66,15 @@ func (h *Handler) Answer() string {
 }
 
 func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
-	fmt.Println("[TESTDEBUG] init. .sources:", len(sources))
 	var negotidated []*hubs.Track
 	me := &pion.MediaEngine{}
 	for _, source := range sources {
 		switch source.MediaType() {
 		case types.MediaTypeVideo:
 			codec, err := source.Codec()
-			fmt.Println("[TESTDEBUG] codec err:", err)
 			if err != nil {
 				return err
 			}
-			fmt.Println("[TESTDEBUG] codec:", codec)
 			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
 				return err
@@ -258,8 +255,11 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.H264Payloader{}, rtp.NewRandomSequencer(), clockRate)
 	case types.CodecTypeVP8:
 		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.VP8Payloader{}, rtp.NewRandomSequencer(), clockRate)
+	case types.CodecTypeAV1:
+		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.AV1Payloader{}, rtp.NewRandomSequencer(), clockRate)
 	case types.CodecTypeOpus:
 		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.OpusPayloader{}, rtp.NewRandomSequencer(), clockRate)
+
 	default:
 		return nil, errors.New("unknown codec type")
 	}
@@ -297,6 +297,7 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 			_ = packetizer.Packetize(h264Codec.PPS(), 3000)
 		}
 	}
+	//fmt.Printf("[TESTDEBUG] Push Packetize unit.Payload:%X\n", unit.Payload[:20])
 	for _, rtpPacket := range packetizer.Packetize(unit.Payload, 3000) { //todo 추상화 필요. h264로 가정함.
 		for _, getExt := range trackCtx.getExtensions {
 			id, payload, ok := getExt()

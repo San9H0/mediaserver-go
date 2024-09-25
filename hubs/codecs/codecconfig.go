@@ -16,12 +16,15 @@ func NewCodecConfig(codecType types.CodecType) (Config, error) {
 		return NewVP8Config(), nil
 	case types.CodecTypeH264:
 		return NewH264Config(), nil
+	case types.CodecTypeAV1:
+		return NewAV1Config(), nil
 	case types.CodecTypeOpus:
 		return NewOpusConfig(OpusParameters{
 			Channels:   2,
 			SampleRate: 48000,
 			SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLT),
 		}), nil
+
 	default:
 		return nil, errors.New("invalid codec type")
 	}

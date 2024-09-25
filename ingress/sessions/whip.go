@@ -129,6 +129,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 			w.stream.AddSource(hubSource)
 
 			parser, err := parsers2.NewRTPParser(codecConfig, func(codec codecs.Codec) {
+				log.Logger.Info("whip set codec", zap.String("codec", codec.String()))
 				hubSource.SetCodec(codec)
 			})
 			if err != nil {

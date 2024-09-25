@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	pion "github.com/pion/webrtc/v3"
+	"go.uber.org/zap"
+	"mediaserver-go/utils/log"
 
 	"mediaserver-go/egress/sessions"
 	"mediaserver-go/egress/sessions/whep"
@@ -38,7 +40,9 @@ func (f *WebRTCServer) StartSession(streamID string, req dto.WHEPRequest) (dto.W
 	go func() {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		sess.Run(ctx)
+		if err := sess.Run(ctx); err != nil {
+			log.Logger.Error("session error", zap.Error(err))
+		}
 	}()
 
 	return dto.WHEPResponse{
