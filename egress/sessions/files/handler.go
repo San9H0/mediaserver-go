@@ -11,12 +11,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avformat"
-	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/hubs/writers"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -90,7 +90,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		if outputStream == nil {
 			return errors.New("avformat stream allocation failed")
 		}
-		avCodec := avcodec.AvcodecFindEncoder(types.CodecIDFromType(sourceTrack.CodecType()))
+		avCodec := avcodec.AvcodecFindEncoder(sourceTrack.Type().AVCodecID())
 		if avCodec == nil {
 			return errors.New("encoder not found")
 		}

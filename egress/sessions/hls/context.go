@@ -1,10 +1,10 @@
 package hls
 
 import (
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avformat"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/writers"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
 	"time"
 )
 

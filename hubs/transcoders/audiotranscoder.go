@@ -4,12 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avutil"
-	"mediaserver-go/ffmpeg/goav/swresample"
 	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
+	"mediaserver-go/thirdparty/ffmpeg/swresample"
 	"mediaserver-go/utils/log"
-	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"unsafe"
 )
@@ -60,7 +59,7 @@ func (t *AudioTranscoder) Setup(sourceCodec, targetCodec codecs.Codec) error {
 	if !ok {
 		return errors.New("invalid target codec")
 	}
-	decoder := avcodec.AvcodecFindDecoder(types.CodecIDFromType(source.CodecType()))
+	decoder := avcodec.AvcodecFindDecoder(source.Type().AVCodecID())
 
 	decoderCtx := decoder.AvCodecAllocContext3()
 	if decoderCtx == nil {
@@ -72,7 +71,7 @@ func (t *AudioTranscoder) Setup(sourceCodec, targetCodec codecs.Codec) error {
 		return errors.New("avcodec open failed")
 	}
 
-	encoder := avcodec.AvcodecFindEncoder(types.CodecIDFromType(target.CodecType()))
+	encoder := avcodec.AvcodecFindEncoder(target.Type().AVCodecID())
 	encoderCtx := encoder.AvCodecAllocContext3()
 	target.SetCodecContext(encoderCtx)
 	if encoderCtx.AvCodecOpen2(encoder, nil) < 0 {

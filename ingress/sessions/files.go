@@ -6,12 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avformat"
-	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/hubs/codecs/bitstreamfilter"
+	"mediaserver-go/hubs/codecs/factory"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"slices"
@@ -55,7 +56,11 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, hubStr
 			continue
 		}
 
-		codec, err := codecs.NewCodecFromAVStream(stream)
+		codecTyp, err := factory.NewType(fmt.Sprintf("%s/%s", mediaType, codecType))
+		if err != nil {
+			return FileSession{}, err
+		}
+		codec, err := codecTyp.CodecFromAVCodecParameters(stream.CodecParameters())
 		if err != nil {
 			return FileSession{}, err
 		}

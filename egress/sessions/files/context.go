@@ -1,9 +1,9 @@
 package files
 
 import (
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avformat"
 	"mediaserver-go/hubs/writers"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
 )
 
 type TrackContext struct {

@@ -26,8 +26,7 @@ type HubSource struct {
 
 	tracks map[string]*Track
 
-	mediaType types.MediaType
-	codecType types.CodecType
+	typ codecs.CodecType
 
 	set            bool
 	codecset       chan codecs.Codec
@@ -36,12 +35,11 @@ type HubSource struct {
 	transcoder     *transcoders.VideoTranscoder
 }
 
-func NewHubSource(mediaType types.MediaType, codecType types.CodecType) *HubSource {
+func NewHubSource(typ codecs.CodecType) *HubSource {
 	return &HubSource{
-		mediaType: mediaType,
-		codecType: codecType,
-		codecset:  make(chan codecs.Codec),
-		tracks:    make(map[string]*Track),
+		typ:      typ,
+		codecset: make(chan codecs.Codec),
+		tracks:   make(map[string]*Track),
 	}
 }
 
@@ -63,11 +61,11 @@ func (t *HubSource) Close() {
 }
 
 func (t *HubSource) MediaType() types.MediaType {
-	return t.mediaType
+	return t.typ.MediaType()
 }
 
 func (t *HubSource) CodecType() types.CodecType {
-	return t.codecType
+	return t.typ.CodecType()
 }
 
 func (t *HubSource) SetCodec(c codecs.Codec) {
@@ -178,7 +176,7 @@ func (t *HubSource) GetTrack(codec codecs.Codec) *Track {
 			zap.Strings("keys", keys),
 			zap.String("codec", codec.String()),
 		)
-		track = NewTrack(t.mediaType, codec.CodecType())
+		track = NewTrack(codec.Type())
 		track.SetCodec(codec)
 		if !t.codec.Equals(codec) {
 			log.Logger.Info("NewAudioTranscoder",

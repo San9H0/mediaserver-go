@@ -6,6 +6,7 @@ import (
 	"github.com/pion/rtp"
 	rtpcodecs "github.com/pion/rtp/codecs"
 	hubcodecs "mediaserver-go/hubs/codecs"
+	h2642 "mediaserver-go/hubs/codecs/h264"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
@@ -30,7 +31,7 @@ func NewPacketizer(parameters engines.RTPCodecParameters, codec hubcodecs.Codec)
 			packetizer: rtp.NewPacketizer(types.MTUSize, parameters.PayloadType, ssrc, &rtpcodecs.VP8Payloader{}, rtp.NewRandomSequencer(), parameters.ClockRate),
 		}, nil
 	case types.CodecTypeH264:
-		videoCodec, ok := codec.(*hubcodecs.H264)
+		videoCodec, ok := codec.(*h2642.H264)
 		if !ok {
 			return nil, errors.New("invalid codec type")
 		}
@@ -57,8 +58,8 @@ func (p *CommonPacketizer) Packetize(unit units.Unit) []*rtp.Packet {
 
 type H264Packetizer struct {
 	packetizer rtp.Packetizer
-	config     hubcodecs.H264Config
-	codec      *hubcodecs.H264
+	config     h2642.H264Config
+	codec      *h2642.H264
 	samples    uint32
 
 	sps, pps []byte

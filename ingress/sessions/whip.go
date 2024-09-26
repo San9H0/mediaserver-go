@@ -3,6 +3,7 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"mediaserver-go/hubs/codecs/factory"
 	"mediaserver-go/ingress/sessions/rtpinbounder"
 	"sync"
 	"time"
@@ -14,10 +15,8 @@ import (
 
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
-	parsers2 "mediaserver-go/parsers"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
-	"mediaserver-go/utils/types"
 )
 
 type WHIPSession struct {
@@ -116,25 +115,24 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 				zap.Uint32("ssrc", uint32(onTrack.remote.SSRC())),
 			)
 
-			mediaType := types.MediaTypeFromPion(onTrack.remote.Kind())
-			codecType := types.CodecTypeFromMimeType(onTrack.remote.Codec().MimeType)
-
-			stats := rtpinbounder.NewStats(mediaType, onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
-			codecConfig, err := codecs.NewCodecConfig(codecType)
+			typ, err := factory.NewType(onTrack.remote.Codec().MimeType)
 			if err != nil {
 				return err
 			}
 
-			hubSource := hubs.NewHubSource(mediaType, codecType)
+			stats := rtpinbounder.NewStats(onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
+
+			hubSource := hubs.NewHubSource(typ)
 			w.stream.AddSource(hubSource)
 
-			parser, err := parsers2.NewRTPParser(codecConfig, func(codec codecs.Codec) {
-				log.Logger.Info("whip set codec", zap.String("codec", codec.String()))
-				hubSource.SetCodec(codec)
-			})
+			parser, err := typ.RTPParser()
 			if err != nil {
 				return err
 			}
+			parser.OnCodec(func(codec codecs.Codec) {
+				hubSource.SetCodec(codec)
+			})
+
 			inbounder := rtpinbounder.NewInbounder(parser, int(onTrack.remote.Codec().ClockRate), func(buf []byte) (int, error) {
 				n, _, err := onTrack.remote.Read(buf)
 				return n, err

@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"slices"
 	"sync"
 	"time"
 
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avformat"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/hubs/writers"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -129,7 +129,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		if outputStream == nil {
 			return errors.New("avformat stream allocation failed")
 		}
-		avCodec := avcodec.AvcodecFindEncoder(types.CodecIDFromType(track.CodecType()))
+		avCodec := avcodec.AvcodecFindEncoder(track.Type().AVCodecID())
 		if avCodec == nil {
 			return errors.New("encoder not found")
 		}

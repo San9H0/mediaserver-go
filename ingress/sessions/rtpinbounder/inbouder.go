@@ -5,7 +5,7 @@ import (
 	"github.com/pion/rtp"
 	"go.uber.org/zap"
 	"mediaserver-go/hubs"
-	"mediaserver-go/parsers"
+	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -20,10 +20,10 @@ type TrackContext struct {
 type Inbounder struct {
 	ReadFunc func([]byte) (int, error)
 	timebase int
-	parser   parsers.RTPParser
+	parser   codecs.RTPParser
 }
 
-func NewInbounder(parser parsers.RTPParser, timebase int, readFunc func([]byte) (int, error)) *Inbounder {
+func NewInbounder(parser codecs.RTPParser, timebase int, readFunc func([]byte) (int, error)) *Inbounder {
 	return &Inbounder{
 		parser:   parser,
 		ReadFunc: readFunc,

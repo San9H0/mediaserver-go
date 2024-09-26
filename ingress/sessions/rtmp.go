@@ -3,17 +3,19 @@ package sessions
 import (
 	"bytes"
 	"fmt"
+	pion "github.com/pion/webrtc/v3"
 	flvtag "github.com/yutopp/go-flv/tag"
 	"github.com/yutopp/go-rtmp"
 	"github.com/yutopp/go-rtmp/message"
 	"go.uber.org/zap"
 	"io"
-	"mediaserver-go/ffmpeg/goav/avutil"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/hubs/codecs/aac"
+	"mediaserver-go/hubs/codecs/factory"
+	"mediaserver-go/hubs/codecs/h264"
 	"mediaserver-go/parsers/format"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/log"
-	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 	"sync"
 )
@@ -25,7 +27,7 @@ type RTMPSession struct {
 	streamKey string
 	hub       *hubs.Hub
 	stream    *hubs.Stream
-	extraData codecs.H264Config
+	extraData h264.H264Config
 
 	videoSource *hubs.HubSource
 	audioSource *hubs.HubSource
@@ -121,7 +123,11 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if value != flvtag.CodecIDAVC {
 					return fmt.Errorf("unsupported video codec: %v", v)
 				}
-				h.videoSource = hubs.NewHubSource(types.MediaTypeVideo, types.CodecTypeH264)
+				typ, err := factory.NewType(pion.MimeTypeH264)
+				if err != nil {
+					return err
+				}
+				h.videoSource = hubs.NewHubSource(typ)
 				h.stream.AddSource(h.videoSource)
 			case "audiocodecid":
 				fv := v.(float64)
@@ -129,7 +135,11 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if value != flvtag.SoundFormatAAC {
 					return fmt.Errorf("unsupported audio codec: %v", v)
 				}
-				h.audioSource = hubs.NewHubSource(types.MediaTypeAudio, types.CodecTypeAAC)
+				typ, err := factory.NewType("audio/aac")
+				if err != nil {
+					return err
+				}
+				h.audioSource = hubs.NewHubSource(typ)
 				h.stream.AddSource(h.audioSource)
 			}
 		}
@@ -162,7 +172,7 @@ func (h *RTMPSession) OnAudio(timestamp uint32, payload io.Reader) error {
 		if err := config.ParseAACAudioSpecificConfig(data); err != nil {
 			return err
 		}
-		codec := codecs.NewAAC(codecs.AACParameters{
+		codec := aac.NewAAC(aac.Parameters{
 			SampleRate: config.SamplingRate,
 			Channels:   config.Channel,
 			SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLTP),
@@ -201,7 +211,7 @@ func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
 		if err := h.extraData.UnmarshalFromConfig(body); err != nil {
 			return err
 		}
-		h264Codecs, err := codecs.NewH264(h.extraData.SPS, h.extraData.PPS)
+		h264Codecs, err := h264.NewH264(h.extraData.SPS, h.extraData.PPS)
 		if err != nil {
 			return err
 		}

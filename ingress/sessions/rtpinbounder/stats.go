@@ -3,7 +3,6 @@ package rtpinbounder
 import (
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	"mediaserver-go/utils/types"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,7 +13,6 @@ const maxSN = 1 << 16
 type Stats struct {
 	mu sync.RWMutex
 
-	MediaType types.MediaType
 	ClockRate uint32
 	SSRC      uint32
 
@@ -36,9 +34,8 @@ type Stats struct {
 	lastTransit    uint32
 }
 
-func NewStats(mediaType types.MediaType, clockRate, ssrc uint32) *Stats {
+func NewStats(clockRate, ssrc uint32) *Stats {
 	return &Stats{
-		MediaType: mediaType,
 		ClockRate: clockRate,
 		SSRC:      ssrc,
 	}

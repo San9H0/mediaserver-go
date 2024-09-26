@@ -2,7 +2,7 @@ package engines
 
 import (
 	pion "github.com/pion/webrtc/v3"
-	"mediaserver-go/hubs/codecs/h264"
+	"mediaserver-go/thirdparty/h264"
 	"mediaserver-go/utils/pointer"
 )
 

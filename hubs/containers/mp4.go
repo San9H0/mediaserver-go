@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync"
 
-	"mediaserver-go/ffmpeg/goav/avformat"
 	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/thirdparty/ffmpeg/avformat"
 )
 
 type MP4 struct {

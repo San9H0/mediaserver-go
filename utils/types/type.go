@@ -2,8 +2,8 @@ package types
 
 import (
 	pion "github.com/pion/webrtc/v3"
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"strings"
 )
 
@@ -42,17 +42,6 @@ func MediaTypeFromPion(mediaType pion.RTPCodecType) MediaType {
 	}
 }
 
-func MediaTypeToFFMPEG(mediaType MediaType) avutil.MediaType {
-	switch mediaType {
-	case MediaTypeAudio:
-		return avutil.AVMEDIA_TYPE_AUDIO
-	case MediaTypeVideo:
-		return avutil.AVMEDIA_TYPE_VIDEO
-	default:
-		return avutil.AVMEDIA_TYPE_UNKNOWN
-	}
-}
-
 // CodecType is the type of codec
 type CodecType string
 
@@ -82,23 +71,6 @@ func CodecTypeFromFFMPEG(codecID avcodec.CodecID) CodecType {
 	}
 }
 
-func CodecIDFromType(codecType CodecType) avcodec.CodecID {
-	switch codecType {
-	case CodecTypeH264:
-		return avcodec.AV_CODEC_ID_H264
-	case CodecTypeVP8:
-		return avcodec.AV_CODEC_ID_VP8
-	case CodecTypeAV1:
-		return avcodec.AV_CODEC_ID_AV1
-	case CodecTypeAAC:
-		return avcodec.AV_CODEC_ID_AAC
-	case CodecTypeOpus:
-		return avcodec.AV_CODEC_ID_OPUS
-	default:
-		return avcodec.AV_CODEC_ID_NONE
-	}
-}
-
 func CodecTypeFromMimeType(mimeType string) CodecType {
 	switch strings.ToLower(mimeType) {
 	case "video/h264":
@@ -113,20 +85,4 @@ func CodecTypeFromMimeType(mimeType string) CodecType {
 		return CodecTypeOpus
 	}
 	return CodecTypeUnknown
-}
-
-func MimeTypeFromCodecType(codecType CodecType) string {
-	switch codecType {
-	case CodecTypeH264:
-		return pion.MimeTypeH264
-	case CodecTypeVP8:
-		return pion.MimeTypeVP8
-	case CodecTypeAV1:
-		return pion.MimeTypeAV1
-	case CodecTypeAAC:
-		return "audio/aac"
-	case CodecTypeOpus:
-		return pion.MimeTypeOpus
-	}
-	return ""
 }

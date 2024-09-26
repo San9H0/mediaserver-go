@@ -18,8 +18,7 @@ type Track struct {
 
 	transcoder *transcoders.AudioTranscoder
 
-	mediaType types.MediaType
-	codecType types.CodecType
+	typ       codecs.CodecType
 	ch        chan units.Unit
 	consumers []chan units.Unit
 
@@ -28,18 +27,17 @@ type Track struct {
 	codec    codecs.Codec
 }
 
-func NewTrack(mediaType types.MediaType, codecType types.CodecType) *Track {
+func NewTrack(typ codecs.CodecType) *Track {
 	return &Track{
-		mediaType: mediaType,
-		codecType: codecType,
-		ch:        make(chan units.Unit, 100),
-		codecset:  make(chan codecs.Codec),
+		typ:      typ,
+		ch:       make(chan units.Unit, 100),
+		codecset: make(chan codecs.Codec),
 	}
 }
 
 func (t *Track) Run() {
 	defer func() {
-		log.Logger.Info("Track closed", zap.Any("mediaType", t.mediaType), zap.Any("codecType", t.codecType))
+		log.Logger.Info("Track closed", zap.String("mimeType", t.typ.MimeType()))
 		if t.transcoder != nil {
 			t.transcoder.Close()
 		}
@@ -73,12 +71,16 @@ func (t *Track) Close() {
 	close(t.ch)
 }
 
+func (t *Track) Type() codecs.CodecType {
+	return t.typ
+}
+
 func (t *Track) MediaType() types.MediaType {
-	return t.mediaType
+	return t.typ.MediaType()
 }
 
 func (t *Track) CodecType() types.CodecType {
-	return t.codecType
+	return t.typ.CodecType()
 }
 
 func (t *Track) SetCodec(c codecs.Codec) {

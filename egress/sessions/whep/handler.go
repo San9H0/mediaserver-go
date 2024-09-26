@@ -4,21 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	commonh264 "github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"mediaserver-go/egress/sessions/whep/playoutdelay"
-	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/hubs/codecs/factory"
+	"mediaserver-go/hubs/codecs/h264"
+	"mediaserver-go/hubs/codecs/opus"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"slices"
 	"time"
 
-	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/google/uuid"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
-	"github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
 	"go.uber.org/zap"
 
 	"mediaserver-go/hubs"
-	hubcodecs "mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/ntp"
 	"mediaserver-go/utils/types"
@@ -97,7 +98,7 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 			}
 			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
-				codec = hubcodecs.NewOpus(hubcodecs.OpusParameters{
+				codec = opus.NewOpus(opus.Parameters{
 					Channels:   2,
 					SampleRate: 48000,
 					SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLT),
@@ -249,19 +250,13 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
 	clockRate := sender.GetParameters().Codecs[0].ClockRate
 
-	var packetizer rtp.Packetizer
-	switch types.CodecTypeFromMimeType(sender.GetParameters().Codecs[0].MimeType) {
-	case types.CodecTypeH264:
-		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.H264Payloader{}, rtp.NewRandomSequencer(), clockRate)
-	case types.CodecTypeVP8:
-		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.VP8Payloader{}, rtp.NewRandomSequencer(), clockRate)
-	case types.CodecTypeAV1:
-		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.AV1Payloader{}, rtp.NewRandomSequencer(), clockRate)
-	case types.CodecTypeOpus:
-		packetizer = rtp.NewPacketizer(types.MTUSize, pt, ssrc, &codecs.OpusPayloader{}, rtp.NewRandomSequencer(), clockRate)
-
-	default:
-		return nil, errors.New("unknown codec type")
+	typ, err := factory.NewType(sender.GetParameters().Codecs[0].MimeType)
+	if err != nil {
+		return nil, err
+	}
+	packetizer, err := typ.RTPPacketizer(pt, ssrc, clockRate)
+	if err != nil {
+		return nil, err
 	}
 
 	var getExtensions []func() (int, []byte, bool)
@@ -290,9 +285,9 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 	localTrack := trackCtx.localTrack
 	track := trackCtx.track
 	if track.CodecType() == types.CodecTypeH264 {
-		if h264.NALUType(unit.Payload[0]&0x1f) == h264.NALUTypeIDR {
+		if commonh264.NALUType(unit.Payload[0]&0x1f) == commonh264.NALUTypeIDR {
 			codec, _ := track.Codec()
-			h264Codec := codec.(*hubcodecs.H264)
+			h264Codec := codec.(*h264.H264)
 			_ = packetizer.Packetize(h264Codec.SPS(), 3000)
 			_ = packetizer.Packetize(h264Codec.PPS(), 3000)
 		}

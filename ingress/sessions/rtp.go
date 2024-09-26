@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"mediaserver-go/hubs"
 	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/hubs/codecs/factory"
 	"mediaserver-go/ingress/sessions/rtpinbounder"
-	parsers2 "mediaserver-go/parsers"
 	"mediaserver-go/utils/types"
 	"net"
 )
@@ -18,10 +18,10 @@ type RTPSession struct {
 	hubSource *hubs.HubSource
 	timebase  int
 
-	codecConfig codecs.Config
+	codecType codecs.CodecType
 }
 
-func NewRTPSession(ip string, port int, pt uint8, codecType types.CodecType, stream *hubs.Stream) (RTPSession, error) {
+func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.Stream) (RTPSession, error) {
 	addr := net.UDPAddr{
 		IP:   net.ParseIP(ip),
 		Port: port,
@@ -31,27 +31,25 @@ func NewRTPSession(ip string, port int, pt uint8, codecType types.CodecType, str
 		return RTPSession{}, err
 	}
 
-	codecConfig, err := codecs.NewCodecConfig(codecType)
+	typ, err := factory.NewType(mimeType)
 	if err != nil {
 		return RTPSession{}, err
 	}
+
 	var hubSource *hubs.HubSource
 	timebase := 0
-	switch codecType {
+
+	hubSource = hubs.NewHubSource(typ)
+	stream.AddSource(hubSource)
+	switch types.CodecTypeFromMimeType(mimeType) {
 	case types.CodecTypeH264:
-		hubSource = hubs.NewHubSource(types.MediaTypeVideo, types.CodecTypeH264)
-		stream.AddSource(hubSource)
 		timebase = 90000
 	case types.CodecTypeVP8:
-		hubSource = hubs.NewHubSource(types.MediaTypeVideo, types.CodecTypeVP8)
-		stream.AddSource(hubSource)
 		timebase = 90000
 	case types.CodecTypeOpus:
-		hubSource = hubs.NewHubSource(types.MediaTypeAudio, types.CodecTypeOpus)
-		stream.AddSource(hubSource)
 		timebase = 48000
 	default:
-		return RTPSession{}, fmt.Errorf("unsupported codec type: %v", codecType)
+		return RTPSession{}, fmt.Errorf("unsupported codec type: %v", mimeType)
 	}
 
 	return RTPSession{
@@ -61,17 +59,19 @@ func NewRTPSession(ip string, port int, pt uint8, codecType types.CodecType, str
 		hubSource: hubSource,
 		timebase:  timebase,
 
-		codecConfig: codecConfig,
+		codecType: typ,
 	}, nil
 }
 
 func (r *RTPSession) Run(ctx context.Context) error {
-	parser, err := parsers2.NewRTPParser(r.codecConfig, func(codec codecs.Codec) {
-		r.hubSource.SetCodec(codec)
-	})
+	parser, err := r.codecType.RTPParser()
 	if err != nil {
 		return err
 	}
+	parser.OnCodec(func(codec codecs.Codec) {
+		r.hubSource.SetCodec(codec)
+	})
+
 	inbounder := rtpinbounder.NewInbounder(parser, r.timebase, func(bytes []byte) (int, error) {
 		n, _, err := r.conn.ReadFromUDP(bytes)
 		return n, err

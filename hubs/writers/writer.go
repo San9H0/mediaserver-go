@@ -1,8 +1,8 @@
 package writers
 
 import (
-	"mediaserver-go/ffmpeg/goav/avcodec"
-	"mediaserver-go/ffmpeg/goav/avutil"
+	"mediaserver-go/thirdparty/ffmpeg/avcodec"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 )
