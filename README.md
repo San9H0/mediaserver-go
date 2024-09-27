@@ -38,3 +38,5 @@
 - [x] AV1
 - [x] Opus
 
+### Run
+CGO

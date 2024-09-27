@@ -2,7 +2,7 @@ module mediaserver-go
 
 go 1.22.5
 
-replace github.com/pion/rtp => ../rtp
+//replace github.com/pion/rtp => ../rtp
 
 //replace github.com/yutopp/go-rtmp => ../go-rtmp
 

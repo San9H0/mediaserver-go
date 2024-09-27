@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	commonh264 "github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"mediaserver-go/codecs/factory"
+	"mediaserver-go/codecs/h264"
+	"mediaserver-go/codecs/opus"
 	"mediaserver-go/egress/sessions/whep/playoutdelay"
-	"mediaserver-go/hubs/codecs/factory"
-	"mediaserver-go/hubs/codecs/h264"
-	"mediaserver-go/hubs/codecs/opus"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"slices"
 	"time"
@@ -27,7 +27,7 @@ import (
 )
 
 type TrackContext struct {
-	track      *hubs.Track
+	track      hubs.Track
 	localTrack *pion.TrackLocalStaticRTP
 	sender     *pion.RTPSender
 	packetizer rtp.Packetizer
@@ -39,12 +39,12 @@ type TrackContext struct {
 
 type Handler struct {
 	se          pion.SettingEngine
-	localTracks map[*hubs.Track]*pion.TrackLocalStaticRTP
+	localTracks map[hubs.Track]*pion.TrackLocalStaticRTP
 
 	api               *pion.API
 	pc                *pion.PeerConnection
 	onConnectionState chan pion.PeerConnectionState
-	negotidated       []*hubs.Track
+	negotidated       []hubs.Track
 
 	playoutDelayHandler *playoutdelay.Handler
 }
@@ -52,13 +52,13 @@ type Handler struct {
 func NewHandler(se pion.SettingEngine) *Handler {
 	return &Handler{
 		se:                  se,
-		localTracks:         make(map[*hubs.Track]*pion.TrackLocalStaticRTP),
+		localTracks:         make(map[hubs.Track]*pion.TrackLocalStaticRTP),
 		playoutDelayHandler: playoutdelay.NewHandler(),
 	}
 }
 
-func (h *Handler) NegotiatedTracks() []*hubs.Track {
-	ret := make([]*hubs.Track, 0, len(h.negotidated))
+func (h *Handler) NegotiatedTracks() []hubs.Track {
+	ret := make([]hubs.Track, 0, len(h.negotidated))
 	return append(ret, h.negotidated...)
 }
 
@@ -67,7 +67,7 @@ func (h *Handler) Answer() string {
 }
 
 func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
-	var negotidated []*hubs.Track
+	var negotidated []hubs.Track
 	me := &pion.MediaEngine{}
 	for _, source := range sources {
 		switch source.MediaType() {
@@ -98,11 +98,11 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 			}
 			webrtcCodecCapability, err := codec.WebRTCCodecCapability()
 			if err != nil {
-				codec = opus.NewOpus(opus.Parameters{
-					Channels:   2,
-					SampleRate: 48000,
-					SampleFmt:  int(avutil.AV_SAMPLE_FMT_FLT),
-				})
+				codec = opus.NewOpus(opus.NewConfig(opus.Parameters{
+					Channels:     2,
+					SampleRate:   48000,
+					SampleFormat: int(avutil.AV_SAMPLE_FMT_FLT),
+				}))
 				webrtcCodecCapability, err = codec.WebRTCCodecCapability()
 			}
 			if err != nil {
@@ -133,12 +133,9 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 		return err
 	}
 	for _, track := range negotidated {
-		switch track.MediaType() {
+		switch track.GetCodec().MediaType() {
 		case types.MediaTypeVideo:
-			videoCodec, err := track.Codec()
-			if err != nil {
-				return err
-			}
+			videoCodec := track.GetCodec()
 			trackID, err := uuid.NewRandom()
 			if err != nil {
 				return err
@@ -157,10 +154,7 @@ func (h *Handler) Init(sources []*hubs.HubSource, offer string) error {
 
 			h.localTracks[track] = localTrack
 		case types.MediaTypeAudio:
-			audioCodec, err := track.Codec()
-			if err != nil {
-				return err
-			}
+			audioCodec := track.GetCodec()
 
 			trackID, err := uuid.NewRandom()
 			if err != nil {
@@ -226,7 +220,7 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext, error) {
+func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext, error) {
 	localTrack, ok := h.localTracks[track]
 	if !ok {
 		return nil, errors.New("handl not found")
@@ -250,7 +244,7 @@ func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
 	clockRate := sender.GetParameters().Codecs[0].ClockRate
 
-	typ, err := factory.NewType(sender.GetParameters().Codecs[0].MimeType)
+	typ, err := factory.NewBase(sender.GetParameters().Codecs[0].MimeType)
 	if err != nil {
 		return nil, err
 	}
@@ -284,10 +278,9 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 	buf := trackCtx.buf
 	localTrack := trackCtx.localTrack
 	track := trackCtx.track
-	if track.CodecType() == types.CodecTypeH264 {
+	if track.GetCodec().CodecType() == types.CodecTypeH264 {
 		if commonh264.NALUType(unit.Payload[0]&0x1f) == commonh264.NALUTypeIDR {
-			codec, _ := track.Codec()
-			h264Codec := codec.(*h264.H264)
+			h264Codec := track.GetCodec().(*h264.H264)
 			_ = packetizer.Packetize(h264Codec.SPS(), 3000)
 			_ = packetizer.Packetize(h264Codec.PPS(), 3000)
 		}

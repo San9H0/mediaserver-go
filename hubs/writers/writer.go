@@ -1,18 +1,22 @@
 package writers
 
 import (
+	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
+	"mediaserver-go/codecs"
+	"mediaserver-go/parsers/bitstreams"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
 )
 
-func NewWriter(index int, timebase int, codecType types.CodecType) *Writer {
+func NewWriter(index int, timebase int, codecType types.CodecType, decoder codecs.Decoder, bitstream bitstreams.Bitstream) *Writer {
 	return &Writer{
 		index:     index,
 		timebase:  timebase,
-		filter:    NewFilter(codecType),
-		bitStream: NewBitStream(codecType),
+		codecType: codecType,
+		decoder:   decoder,
+		bitstream: bitstream,
 	}
 }
 
@@ -22,8 +26,9 @@ type Writer struct {
 
 	timebase  int
 	index     int
-	filter    Filter
-	bitStream BitStream
+	codecType types.CodecType
+	decoder   codecs.Decoder
+	bitstream bitstreams.Bitstream
 
 	sps, pps []byte // for video (h264)
 }
@@ -45,7 +50,7 @@ func (v *Writer) WriteAudioPkt(unit units.Unit, pkt *avcodec.Packet) *avcodec.Pa
 	pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, inputTimebase, outputTimebase))
 	pkt.SetStreamIndex(v.index)
 	pkt.SetData(unit.Payload)
-	pkt.SetFlag(0) // 0
+	pkt.SetFlag(0)
 	return pkt
 }
 
@@ -59,12 +64,15 @@ func (v *Writer) WriteVideoPkt(unit units.Unit, pkt *avcodec.Packet) *avcodec.Pa
 	}
 	dts := unit.DTS - v.baseDTS
 
-	if v.filter.Drop(unit) {
-		return nil
+	if v.codecType == types.CodecTypeH264 {
+		naluType := h264.NALUType(unit.Payload[0] & 0x1f)
+		if naluType == h264.NALUTypeSPS || naluType == h264.NALUTypePPS {
+			return nil // drop
+		}
 	}
 
 	flag := 0
-	if v.filter.KeyFrame(unit) {
+	if v.decoder.KeyFrame(unit.Payload) {
 		flag = 1
 	}
 
@@ -77,7 +85,7 @@ func (v *Writer) WriteVideoPkt(unit units.Unit, pkt *avcodec.Packet) *avcodec.Pa
 	pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, inputTimebase, outputTimebase))
 	pkt.SetStreamIndex(v.index)
 
-	data := v.bitStream.SetBitStream(unit)
+	data := v.bitstream.SetBitStream(unit.Payload)
 
 	pkt.SetData(data)
 	pkt.SetFlag(flag)

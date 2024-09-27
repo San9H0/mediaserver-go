@@ -28,13 +28,13 @@ func (f *FileServer) StartSession(streamID string, req dto.EgressFileRequest) (d
 		return dto.EgressFileResponse{}, errors.New("stream not found")
 	}
 
-	filteredSourceTracks, err := filterMediaTypesInStream(stream, req.MediaTypes)
+	filteredSources, err := filterMediaTypesInStream(stream, req.MediaTypes)
 	if err != nil {
 		return dto.EgressFileResponse{}, err
 	}
 
 	handler := files.NewHandler(req.Path, buffers.NewMemory())
-	if err := handler.Init(context.Background(), filteredSourceTracks); err != nil {
+	if err := handler.Init(context.Background(), filteredSources); err != nil {
 		return dto.EgressFileResponse{}, err
 	}
 

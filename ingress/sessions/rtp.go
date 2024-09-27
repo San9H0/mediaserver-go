@@ -3,9 +3,9 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"mediaserver-go/codecs"
+	"mediaserver-go/codecs/factory"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/hubs/codecs/factory"
 	"mediaserver-go/ingress/sessions/rtpinbounder"
 	"mediaserver-go/utils/types"
 	"net"
@@ -18,7 +18,7 @@ type RTPSession struct {
 	hubSource *hubs.HubSource
 	timebase  int
 
-	codecType codecs.CodecType
+	codecType codecs.Base
 }
 
 func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.Stream) (RTPSession, error) {
@@ -31,7 +31,7 @@ func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.
 		return RTPSession{}, err
 	}
 
-	typ, err := factory.NewType(mimeType)
+	typ, err := factory.NewBase(mimeType)
 	if err != nil {
 		return RTPSession{}, err
 	}
@@ -64,13 +64,12 @@ func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.
 }
 
 func (r *RTPSession) Run(ctx context.Context) error {
-	parser, err := r.codecType.RTPParser()
+	parser, err := r.codecType.RTPParser(func(codec codecs.Codec) {
+		r.hubSource.SetCodec(codec)
+	})
 	if err != nil {
 		return err
 	}
-	parser.OnCodec(func(codec codecs.Codec) {
-		r.hubSource.SetCodec(codec)
-	})
 
 	inbounder := rtpinbounder.NewInbounder(parser, r.timebase, func(bytes []byte) (int, error) {
 		n, _, err := r.conn.ReadFromUDP(bytes)

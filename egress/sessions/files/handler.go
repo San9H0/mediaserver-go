@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mediaserver-go/parsers/bitstreams"
 	"os"
 	"slices"
 	"sync"
 
 	"go.uber.org/zap"
 
+	"mediaserver-go/codecs"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/hubs/writers"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avformat"
@@ -34,7 +35,7 @@ type Handler struct {
 	tempBuffer []byte
 
 	extension       string
-	negotiated      []*hubs.Track
+	negotiated      []hubs.Track
 	outputFormatCtx *avformat.FormatContext
 }
 
@@ -46,8 +47,8 @@ func NewHandler(path string, buffer io.ReadWriteSeeker) *Handler {
 	}
 }
 
-func (h *Handler) NegotiatedTracks() []*hubs.Track {
-	ret := make([]*hubs.Track, 0, len(h.negotiated))
+func (h *Handler) NegotiatedTracks() []hubs.Track {
+	ret := make([]hubs.Track, 0, len(h.negotiated))
 	return append(ret, h.negotiated...)
 }
 
@@ -55,7 +56,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	var err error
 	var videoCodec codecs.VideoCodec
 	var audioCodec codecs.AudioCodec
-	var negotiated []*hubs.Track
+	var negotiated []hubs.Track
 	for _, source := range sources {
 		if source.MediaType() == types.MediaTypeVideo {
 			if videoCodec, err = source.VideoCodec(); err != nil {
@@ -82,15 +83,12 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	}
 
 	for _, sourceTrack := range negotiated {
-		sourceCodec, err := sourceTrack.Codec()
-		if err != nil {
-			return fmt.Errorf("codec not found: %w", err)
-		}
+		sourceCodec := sourceTrack.GetCodec()
 		outputStream := outputFormatCtx.AvformatNewStream(nil)
 		if outputStream == nil {
 			return errors.New("avformat stream allocation failed")
 		}
-		avCodec := avcodec.AvcodecFindEncoder(sourceTrack.Type().AVCodecID())
+		avCodec := avcodec.AvcodecFindEncoder(sourceCodec.AVCodecID())
 		if avCodec == nil {
 			return errors.New("encoder not found")
 		}
@@ -157,25 +155,31 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext, error) {
+func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext, error) {
 	index := slices.Index(h.negotiated, track)
 	outputStream := h.outputFormatCtx.Streams()[index]
+
+	codec := track.GetCodec()
+	var bitstream bitstreams.Bitstream
+	bitstream = &bitstreams.Empty{}
+	if codec.CodecType() == types.CodecTypeH264 {
+		bitstream = &bitstreams.AVCC{}
+	}
 	return &TrackContext{
 		pkt:          avcodec.AvPacketAlloc(),
 		outputStream: outputStream,
-		writer:       writers.NewWriter(index, outputStream.TimeBase().Den(), track.CodecType()),
+		writer:       writers.NewWriter(index, outputStream.TimeBase().Den(), track.GetCodec().CodecType(), codec.Decoder(), bitstream),
 	}, nil
 }
 
 func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
 	writer := trackCtx.writer
-	pkt := trackCtx.pkt
-	setPkt := writer.WriteVideoPkt(unit, pkt)
-	if setPkt == nil {
+	pkt := writer.WriteVideoPkt(unit, trackCtx.pkt)
+	if pkt == nil {
 		return nil
 	}
 	h.mu.Lock()
-	_ = h.outputFormatCtx.AvInterleavedWriteFrame(setPkt)
+	_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	h.mu.Unlock()
 	pkt.AvPacketUnref()
 	return nil
@@ -183,13 +187,12 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 
 func (h *Handler) OnAudio(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
 	writer := trackCtx.writer
-	pkt := trackCtx.pkt
-	setPkt := writer.WriteAudioPkt(unit, pkt)
-	if setPkt == nil {
+	pkt := writer.WriteAudioPkt(unit, trackCtx.pkt)
+	if pkt == nil {
 		return nil
 	}
 	h.mu.Lock()
-	_ = h.outputFormatCtx.AvInterleavedWriteFrame(setPkt)
+	_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	h.mu.Unlock()
 	pkt.AvPacketUnref()
 	return nil

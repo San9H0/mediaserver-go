@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/codecs"
 	"mediaserver-go/thirdparty/ffmpeg/avformat"
 )
 

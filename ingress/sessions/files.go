@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mediaserver-go/codecs"
+	"mediaserver-go/codecs/bitstreamfilter"
+	"mediaserver-go/codecs/factory"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/hubs/codecs/bitstreamfilter"
-	"mediaserver-go/hubs/codecs/factory"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avformat"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
@@ -55,17 +55,16 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, hubStr
 		if !slices.Contains(mediaTypes, mediaType) {
 			continue
 		}
-
-		codecTyp, err := factory.NewType(fmt.Sprintf("%s/%s", mediaType, codecType))
+		codecBase, err := factory.NewBase(fmt.Sprintf("%s/%s", mediaType, codecType))
 		if err != nil {
 			return FileSession{}, err
 		}
-		codec, err := codecTyp.CodecFromAVCodecParameters(stream.CodecParameters())
+		codec, err := codecBase.CodecFromAVCodecParameters(stream.CodecParameters())
 		if err != nil {
 			return FileSession{}, err
 		}
 
-		source := hubs.NewHubSource(mediaType, codecType)
+		source := hubs.NewHubSource(codecBase)
 		hubStream.AddSource(source)
 		source.SetCodec(codec)
 		trackCtx[i] = &trackContext{

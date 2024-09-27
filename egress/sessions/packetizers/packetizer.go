@@ -5,8 +5,8 @@ import (
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
 	rtpcodecs "github.com/pion/rtp/codecs"
-	hubcodecs "mediaserver-go/hubs/codecs"
-	h2642 "mediaserver-go/hubs/codecs/h264"
+	hubcodecs "mediaserver-go/codecs"
+	h2642 "mediaserver-go/codecs/h264"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
@@ -58,14 +58,13 @@ func (p *CommonPacketizer) Packetize(unit units.Unit) []*rtp.Packet {
 
 type H264Packetizer struct {
 	packetizer rtp.Packetizer
-	config     h2642.H264Config
+	config     h2642.Config
 	codec      *h2642.H264
 	samples    uint32
 
 	sps, pps []byte
 
 	sps2, pps2 []byte
-	codec2     hubcodecs.Codec
 }
 
 func (h *H264Packetizer) Packetize(unit units.Unit) []*rtp.Packet {
@@ -83,9 +82,6 @@ func (h *H264Packetizer) Packetize(unit units.Unit) []*rtp.Packet {
 			return nil
 		}
 
-		if h.codec2, _ = h.config.GetCodec(); h.codec2 == nil {
-			return nil
-		}
 		_ = h.packetizer.Packetize(h.sps2, h.samples)
 		_ = h.packetizer.Packetize(h.pps2, h.samples)
 	}

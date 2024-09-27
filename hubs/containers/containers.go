@@ -3,7 +3,7 @@ package containers
 import (
 	"errors"
 
-	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/codecs"
 	"mediaserver-go/thirdparty/ffmpeg/avformat"
 	"mediaserver-go/utils/types"
 )

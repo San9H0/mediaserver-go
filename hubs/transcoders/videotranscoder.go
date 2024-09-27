@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"go.uber.org/zap"
-	"mediaserver-go/hubs/codecs"
-	"mediaserver-go/hubs/codecs/bitstreamfilter"
+	"mediaserver-go/codecs"
+	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/thirdparty/ffmpeg/swresample"
@@ -43,9 +43,9 @@ func (t *VideoTranscoder) Close() {
 	}
 }
 
-func (t *VideoTranscoder) Setup(sourceCodec, targetCodec codecs.Codec) error {
-	bitStreamFilter := sourceCodec.GetBitStreamFilter()
-	decoder := avcodec.AvcodecFindDecoder(sourceCodec.Type().AVCodecID())
+func (t *VideoTranscoder) Setup(source, target codecs.Codec) error {
+	bitStreamFilter := source.GetBitStreamFilter()
+	decoder := avcodec.AvcodecFindDecoder(source.AVCodecID())
 	if decoder == nil {
 		return fmt.Errorf("could not find decoder: %w", errFailedToSetTranscodeCodec)
 	}
@@ -53,12 +53,12 @@ func (t *VideoTranscoder) Setup(sourceCodec, targetCodec codecs.Codec) error {
 	if decoderCtx == nil {
 		return fmt.Errorf("could not allocate codec context: %w", errFailedToSetTranscodeCodec)
 	}
-	sourceCodec.SetCodecContext(decoderCtx)
+	source.SetCodecContext(decoderCtx)
 	if decoderCtx.AvCodecOpen2(decoder, nil) < 0 {
 		return fmt.Errorf("could not open codec: %w", errFailedToSetTranscodeCodec)
 	}
 
-	encoder := avcodec.AvcodecFindEncoder(targetCodec.Type().AVCodecID())
+	encoder := avcodec.AvcodecFindEncoder(target.AVCodecID())
 	if encoder == nil {
 		return fmt.Errorf("could not find encoder: %w", errFailedToSetTranscodeCodec)
 	}
@@ -66,7 +66,7 @@ func (t *VideoTranscoder) Setup(sourceCodec, targetCodec codecs.Codec) error {
 	if encoderCtx == nil {
 		return fmt.Errorf("could not allocate codec context: %w", errFailedToSetTranscodeCodec)
 	}
-	targetCodec.SetCodecContext(encoderCtx)
+	target.SetCodecContext(encoderCtx)
 	if encoderCtx.AvCodecOpen2(encoder, nil) < 0 {
 		return fmt.Errorf("could not open codec: %w", errFailedToSetTranscodeCodec)
 	}

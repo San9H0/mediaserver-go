@@ -23,7 +23,7 @@ type Handler struct {
 	targetAddr  string
 	targetPort  int
 	sd          sdp.SessionDescription
-	negotidated []*hubs.Track
+	negotidated []hubs.Track
 }
 
 func NewHandler(targetAddr string, targetPort int) *Handler {
@@ -33,8 +33,8 @@ func NewHandler(targetAddr string, targetPort int) *Handler {
 	}
 }
 
-func (h *Handler) NegotiatedTracks() []*hubs.Track {
-	ret := make([]*hubs.Track, 0, len(h.negotidated))
+func (h *Handler) NegotiatedTracks() []hubs.Track {
+	ret := make([]hubs.Track, 0, len(h.negotidated))
 	return append(ret, h.negotidated...)
 }
 
@@ -56,7 +56,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	if err != nil {
 		return err
 	}
-	var negotidated []*hubs.Track
+	var negotidated []hubs.Track
 	sd := h.makeSessionDescription()
 	for _, source := range sources {
 		codec, err := source.Codec()
@@ -78,11 +78,8 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	return nil
 }
 
-func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext, error) {
-	codec, err := track.Codec()
-	if err != nil {
-		return nil, err
-	}
+func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext, error) {
+	codec := track.GetCodec()
 	rtpCapability, err := codec.RTPCodecCapability(h.targetPort)
 	if err != nil {
 		return nil, err

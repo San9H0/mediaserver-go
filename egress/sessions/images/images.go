@@ -11,7 +11,7 @@ type Handler struct {
 	mu sync.RWMutex
 
 	encoding   string
-	negotiated []*hubs.Track
+	negotiated []hubs.Track
 }
 
 func NewHandler(encoding string) *Handler {
@@ -20,13 +20,13 @@ func NewHandler(encoding string) *Handler {
 	}
 }
 
-func (h *Handler) NegotiatedTracks() []*hubs.Track {
-	ret := make([]*hubs.Track, 0, len(h.negotiated))
+func (h *Handler) NegotiatedTracks() []hubs.Track {
+	ret := make([]hubs.Track, 0, len(h.negotiated))
 	return append(ret, h.negotiated...)
 }
 
 func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
-	var negotiated []*hubs.Track
+	var negotiated []hubs.Track
 	for _, source := range sources {
 		codec, err := source.Codec()
 		if err != nil {
@@ -42,7 +42,7 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 	return nil
 }
 
-func (h *Handler) OnTrack(ctx context.Context, track *hubs.Track) (*TrackContext, error) {
+func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext, error) {
 	return nil, nil
 }
 

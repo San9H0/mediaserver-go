@@ -4,13 +4,14 @@ import (
 	"errors"
 	"go.uber.org/zap"
 	"golang.org/x/exp/maps"
+	"mediaserver-go/hubs/tracks"
 	"mediaserver-go/hubs/transcoders"
 	"mediaserver-go/utils/log"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"mediaserver-go/hubs/codecs"
+	"mediaserver-go/codecs"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
@@ -24,9 +25,9 @@ type HubSource struct {
 	mu     sync.RWMutex
 	closed atomic.Bool
 
-	tracks map[string]*Track
+	tracks map[string]Track
 
-	typ codecs.CodecType
+	typ codecs.Base
 
 	set            bool
 	codecset       chan codecs.Codec
@@ -35,11 +36,11 @@ type HubSource struct {
 	transcoder     *transcoders.VideoTranscoder
 }
 
-func NewHubSource(typ codecs.CodecType) *HubSource {
+func NewHubSource(typ codecs.Base) *HubSource {
 	return &HubSource{
 		typ:      typ,
 		codecset: make(chan codecs.Codec),
-		tracks:   make(map[string]*Track),
+		tracks:   make(map[string]Track),
 	}
 }
 
@@ -160,60 +161,44 @@ func (t *HubSource) Write(unit units.Unit) {
 
 	for _, track := range t.tracks {
 		for _, u := range us {
-			utils.SendOrDrop(track.ch, u)
+			utils.SendOrDrop(track.InputCh(), u)
 		}
 	}
 }
 
-func (t *HubSource) GetTrack(codec codecs.Codec) *Track {
+func (t *HubSource) GetTrack(codec codecs.Codec) Track {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	track, ok := t.tracks[codec.String()]
+	iTrack, ok := t.tracks[codec.String()]
 	if !ok {
-		keys := maps.Keys(t.tracks)
 		log.Logger.Info("GetTrack",
-			zap.Strings("keys", keys),
+			zap.Strings("keys", maps.Keys(t.tracks)), // for deugging
 			zap.String("codec", codec.String()),
 		)
-		track = NewTrack(codec.Type())
-		track.SetCodec(codec)
 		if !t.codec.Equals(codec) {
+			transcoder := transcoders.NewAudioTranscoder(t.codec, codec)
+			if err := transcoder.Setup(); err != nil {
+				log.Logger.Error("transcoder setup failed", zap.Error(err))
+				return nil
+			}
+
+			transcoderTrack := tracks.NewTranscoderTrack(transcoder)
+			go transcoderTrack.Run()
+
 			log.Logger.Info("NewAudioTranscoder",
 				zap.String("sourceCodec", t.codec.String()),
 				zap.String("targetCodec", codec.String()),
 			)
-			tanscoder := transcoders.NewAudioTranscoder()
-			if err := tanscoder.Setup(t.codec, codec); err != nil {
-				log.Logger.Error("transcoder setup failed", zap.Error(err))
-				return nil
-			}
-			track.transcoder = tanscoder
+			t.tracks[codec.String()] = transcoderTrack
 		} else {
+			track := tracks.NewTrack(codec)
+			go track.Run()
 			log.Logger.Info("No Transcoder",
 				zap.String("sourceCodec", t.codec.String()),
-				zap.String("targetCodec", codec.String()),
-			)
+				zap.String("targetCodec", codec.String()))
+			t.tracks[codec.String()] = track
 		}
-		go track.Run()
-		t.tracks[codec.String()] = track
 	}
-	return track
+	return iTrack
 }
-
-//func (t *HubSource) AddTranscodeTrack(targetCodec codecs.Codec) (*HubSource, error) {
-//	sourceCodec, err := t.Codec()
-//	if err != nil {
-//		return nil, err
-//	}
-//	if sourceCodec == targetCodec {
-//		return t, nil
-//	}
-//
-//	transcoder := NewAudioTranscoder()
-//	if err := transcoder.SetupAudio(sourceCodec, targetCodec); err != nil {
-//		return nil, err
-//	}
-//
-//	return track, nil
-//}

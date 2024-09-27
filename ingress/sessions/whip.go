@@ -3,7 +3,7 @@ package sessions
 import (
 	"context"
 	"fmt"
-	"mediaserver-go/hubs/codecs/factory"
+	"mediaserver-go/codecs/factory"
 	"mediaserver-go/ingress/sessions/rtpinbounder"
 	"sync"
 	"time"
@@ -13,8 +13,8 @@ import (
 	"go.uber.org/zap"
 	_ "golang.org/x/image/vp8"
 
+	"mediaserver-go/codecs"
 	"mediaserver-go/hubs"
-	"mediaserver-go/hubs/codecs"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
 )
@@ -115,7 +115,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 				zap.Uint32("ssrc", uint32(onTrack.remote.SSRC())),
 			)
 
-			typ, err := factory.NewType(onTrack.remote.Codec().MimeType)
+			typ, err := factory.NewBase(onTrack.remote.Codec().MimeType)
 			if err != nil {
 				return err
 			}
@@ -125,14 +125,12 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 			hubSource := hubs.NewHubSource(typ)
 			w.stream.AddSource(hubSource)
 
-			parser, err := typ.RTPParser()
+			parser, err := typ.RTPParser(func(codec codecs.Codec) {
+				hubSource.SetCodec(codec)
+			})
 			if err != nil {
 				return err
 			}
-			parser.OnCodec(func(codec codecs.Codec) {
-				hubSource.SetCodec(codec)
-			})
-
 			inbounder := rtpinbounder.NewInbounder(parser, int(onTrack.remote.Codec().ClockRate), func(buf []byte) (int, error) {
 				n, _, err := onTrack.remote.Read(buf)
 				return n, err

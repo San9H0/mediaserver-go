@@ -9,7 +9,7 @@ import (
 )
 
 type OnTrackContext struct {
-	track        *hubs.Track
+	track        hubs.Track
 	pkt          *avcodec.Packet
 	outputStream *avformat.Stream
 	writer       *writers.Writer
