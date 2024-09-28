@@ -9,9 +9,9 @@ import (
 func GetWebRTCCapabilities() map[pion.RTPCodecType][]pion.RTPCodecParameters {
 	r := make(map[pion.RTPCodecType][]pion.RTPCodecParameters)
 	r[pion.RTPCodecTypeAudio] = append(r[pion.RTPCodecTypeAudio], opusRTPCodecCapabilities())
-	r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], av1RTPCodecCapabilities())
+	//r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], av1RTPCodecCapabilities())
 	//r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], vp8RTPCodecCapabilities())
-	//r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], h264RTPCodecCapabilities()...)
+	r[pion.RTPCodecTypeVideo] = append(r[pion.RTPCodecTypeVideo], h264RTPCodecCapabilities()...)
 	return r
 }
 

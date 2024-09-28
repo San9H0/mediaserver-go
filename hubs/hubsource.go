@@ -191,6 +191,7 @@ func (t *HubSource) GetTrack(codec codecs.Codec) Track {
 				zap.String("targetCodec", codec.String()),
 			)
 			t.tracks[codec.String()] = transcoderTrack
+			iTrack = transcoderTrack
 		} else {
 			track := tracks.NewTrack(codec)
 			go track.Run()
@@ -198,6 +199,7 @@ func (t *HubSource) GetTrack(codec codecs.Codec) Track {
 				zap.String("sourceCodec", t.codec.String()),
 				zap.String("targetCodec", codec.String()))
 			t.tracks[codec.String()] = track
+			iTrack = track
 		}
 	}
 	return iTrack

@@ -12,39 +12,43 @@ import (
 type Base struct {
 }
 
-func (t Base) MimeType() string {
+func (b Base) MimeType() string {
 	return "audio/aac"
 }
 
-func (t Base) MediaType() types.MediaType {
-	return types.MediaTypeVideo
+func (b Base) MediaType() types.MediaType {
+	return types.MediaTypeAudio
 }
 
-func (t Base) AVMediaType() avutil.MediaType {
+func (b Base) AVMediaType() avutil.MediaType {
 	return avutil.AVMEDIA_TYPE_AUDIO
 }
 
-func (t Base) CodecType() types.CodecType {
-	return types.CodecTypeAV1
+func (b Base) CodecType() types.CodecType {
+	return types.CodecTypeAAC
 }
 
-func (t Base) AVCodecID() avcodec.CodecID {
+func (b Base) AVCodecID() avcodec.CodecID {
 	return avcodec.AV_CODEC_ID_AAC
 }
 
-func (t Base) RTPParser(cb func(codec codecs.Codec)) (codecs.RTPParser, error) {
+func (b Base) Extension() string {
+	return "mp4"
+}
+
+func (b Base) RTPParser(cb func(codec codecs.Codec)) (codecs.RTPParser, error) {
 	return nil, errors.New("aac codec not support rtp parser")
 }
 
-func (t Base) RTPIngressCapability() {
+func (b Base) RTPIngressCapability() {
 
 }
 
-func (t Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packetizer, error) {
+func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packetizer, error) {
 	return nil, errors.New("aac codec not support rtp packetizer")
 }
 
-func (t Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (codecs.Codec, error) {
+func (b Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (codecs.Codec, error) {
 	config := NewConfig(Parameters{
 		SampleRate:   param.SampleRate(),
 		Channels:     param.Channels(),

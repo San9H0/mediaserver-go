@@ -1,7 +1,6 @@
 package types
 
 import (
-	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"strings"
@@ -25,17 +24,6 @@ func MediaTypeFromFFMPEG(mediaType avutil.MediaType) MediaType {
 	case avutil.AVMEDIA_TYPE_AUDIO:
 		return MediaTypeAudio
 	case avutil.AVMEDIA_TYPE_VIDEO:
-		return MediaTypeVideo
-	default:
-		return UnknownMediaType
-	}
-}
-
-func MediaTypeFromPion(mediaType pion.RTPCodecType) MediaType {
-	switch mediaType {
-	case pion.RTPCodecTypeAudio:
-		return MediaTypeAudio
-	case pion.RTPCodecTypeVideo:
 		return MediaTypeVideo
 	default:
 		return UnknownMediaType

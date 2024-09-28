@@ -34,8 +34,12 @@ func (b Base) AVCodecID() avcodec.CodecID {
 	return avcodec.AV_CODEC_ID_OPUS
 }
 
+func (b Base) Extension() string {
+	return "mp4"
+}
+
 func (b Base) RTPParser(cb func(codec codecs.Codec)) (codecs.RTPParser, error) {
-	return NewOpusParser(cb), nil
+	return NewRTPParser(cb), nil
 }
 
 func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packetizer, error) {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"mediaserver-go/parsers/bitstreams"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"slices"
@@ -29,18 +28,16 @@ type Endpoint interface {
 type Handler struct {
 	mu sync.RWMutex
 
-	ioBuffer io.ReadWriteSeeker
 	endpoint Endpoint
 
 	extension       string
-	negotidated     []hubs.Track
+	negotiated      []hubs.Track
 	outputFormatCtx *avformat.FormatContext
 	index           int
 }
 
-func NewHandler(buffer io.ReadWriteSeeker, endpoint Endpoint) *Handler {
+func NewHandler(endpoint Endpoint) *Handler {
 	return &Handler{
-		ioBuffer: buffer,
 		endpoint: endpoint,
 	}
 }
@@ -54,7 +51,7 @@ func (h *Handler) CodecString(mediaType types.MediaType) string {
 		switch codecType {
 		case types.CodecTypeH264:
 			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
-			videoCodec, ok := h.negotidated[i].GetCodec().(codecs.VideoCodec)
+			videoCodec, ok := h.negotiated[i].GetCodec().(codecs.VideoCodec)
 			if !ok {
 				continue
 			}
@@ -77,8 +74,8 @@ func (h *Handler) CodecString(mediaType types.MediaType) string {
 }
 
 func (h *Handler) NegotiatedTracks() []hubs.Track {
-	ret := make([]hubs.Track, 0, len(h.negotidated))
-	return append(ret, h.negotidated...)
+	ret := make([]hubs.Track, 0, len(h.negotiated))
+	return append(ret, h.negotiated...)
 }
 
 func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
@@ -159,7 +156,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 	h.outputFormatCtx.SetPb(avformat.AVIOOpenDynBuf())
 
 	h.extension = extension
-	h.negotidated = negotiated
+	h.negotiated = negotiated
 	return nil
 }
 
@@ -195,7 +192,7 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 }
 
 func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*OnTrackContext, error) {
-	index := slices.Index(h.negotidated, track)
+	index := slices.Index(h.negotiated, track)
 	stream := h.outputFormatCtx.Streams()[index]
 
 	codec := track.GetCodec()

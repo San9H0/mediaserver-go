@@ -8,7 +8,6 @@ import (
 	"mediaserver-go/egress/sessions"
 	"mediaserver-go/egress/sessions/files"
 	"mediaserver-go/hubs"
-	"mediaserver-go/utils/buffers"
 	"mediaserver-go/utils/dto"
 )
 
@@ -33,7 +32,7 @@ func (f *FileServer) StartSession(streamID string, req dto.EgressFileRequest) (d
 		return dto.EgressFileResponse{}, err
 	}
 
-	handler := files.NewHandler(req.Path, buffers.NewMemory())
+	handler := files.NewHandler(req.Path)
 	if err := handler.Init(context.Background(), filteredSources); err != nil {
 		return dto.EgressFileResponse{}, err
 	}

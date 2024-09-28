@@ -3,23 +3,28 @@ package opus
 import (
 	"github.com/pion/rtp"
 	"mediaserver-go/codecs"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"sync/atomic"
 )
 
-type OpusParser struct {
+type RTPParser struct {
 	once atomic.Bool
 	cb   func(codec codecs.Codec)
 }
 
-func NewOpusParser(cb func(codec codecs.Codec)) *OpusParser {
-	return &OpusParser{
+func NewRTPParser(cb func(codec codecs.Codec)) *RTPParser {
+	return &RTPParser{
 		cb: cb,
 	}
 }
 
-func (o *OpusParser) Parse(rtpPacket *rtp.Packet) [][]byte {
-	if !o.once.Swap(true) {
-		o.cb(nil)
+func (r *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
+	if !r.once.Swap(true) {
+		r.cb(NewOpus(NewConfig(Parameters{
+			Channels:     2,
+			SampleRate:   48000,
+			SampleFormat: int(avutil.AV_SAMPLE_FMT_FLT),
+		})))
 	}
 	return [][]byte{rtpPacket.Payload}
 }

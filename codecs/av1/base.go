@@ -34,6 +34,10 @@ func (b Base) AVCodecID() avcodec.CodecID {
 	return avcodec.AV_CODEC_ID_AV1
 }
 
+func (b Base) Extension() string {
+	return "mp4"
+}
+
 func (b Base) RTPParser(cb func(codec codecs.Codec)) (codecs.RTPParser, error) {
 	return NewRTPParser(cb), nil
 }

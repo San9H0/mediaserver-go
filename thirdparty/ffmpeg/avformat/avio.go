@@ -14,7 +14,6 @@ import (
 //#include <libavformat/avio.h>
 //extern int read_packet(void *, uint8_t *, int);
 //extern int write_packet(void *, uint8_t *, int);
-//extern int write_packet2(void *, uint8_t *, int);
 //extern int64_t seek(void *, int64_t, int);
 import "C"
 
@@ -108,25 +107,6 @@ func read_packet(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
 		if errors.Is(err, io.EOF) {
 			return 0
 		}
-		return -1
-	}
-	return C.int(n)
-}
-
-//export write_packet2
-func write_packet2(opaque unsafe.Pointer, buf *C.uint8_t, buf_size C.int) C.int {
-	fmt.Println("[TESTDEBUG] write_packet called with buf_size:", buf_size)
-	ctx_ptr := (*interface{})(opaque)
-	value, ok := ContextBufferMap.Load(ctx_ptr)
-	if !ok {
-		return -1
-	}
-	writer, ok := value.(io.Writer)
-	if !ok {
-		return -1
-	}
-	n, err := writer.Write(C.GoBytes(unsafe.Pointer(buf), C.int(buf_size)))
-	if err != nil {
 		return -1
 	}
 	return C.int(n)

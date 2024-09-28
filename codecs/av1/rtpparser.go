@@ -1,6 +1,7 @@
 package av1
 
 import (
+	"bytes"
 	"github.com/pion/rtp"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
@@ -9,6 +10,8 @@ import (
 
 type RTTPParser struct {
 	fragments [][]byte
+
+	sequenceHeaderData []byte
 
 	cb func(codec codecs.Codec)
 }
@@ -73,10 +76,15 @@ func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 		if index == 0 && Z == 1 { // 이전요소가 이어짐.
 			a.fragments[len(a.fragments)-1] = append(a.fragments[len(a.fragments)-1], data...)
 		} else {
-			if N == 1 && index == 0 {
+			if N == 1 && index == 0 && !bytes.Equal(a.sequenceHeaderData, data) {
 				config := &Config{}
 				if err := config.UnmarshalSequenceHeader(data); err == nil {
 					av1Codec := NewAV1(config)
+					log.Logger.Info("av1 sequence header",
+						zap.Int("width", av1Codec.Width()),
+						zap.Int("height", av1Codec.Height()),
+					)
+					a.sequenceHeaderData = bytes.Clone(data)
 					a.cb(av1Codec)
 				} else {
 					log.Logger.Error("av1 unmarshal err", zap.Error(err))

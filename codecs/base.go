@@ -8,13 +8,20 @@ import (
 )
 
 type Base interface {
+	// base info
 	MimeType() string
 	MediaType() types.MediaType
 	AVMediaType() avutil.MediaType
 	CodecType() types.CodecType
 	AVCodecID() avcodec.CodecID
+
+	// for file
+	Extension() string
+
+	// for rtp
 	RTPParser(func(codec Codec)) (RTPParser, error)
 	RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packetizer, error)
-	CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (Codec, error)
 	Decoder() Decoder
+
+	CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (Codec, error)
 }

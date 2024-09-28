@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"mediaserver-go/parsers/bitstreams"
 	"os"
 	"slices"
@@ -30,20 +29,17 @@ const (
 type Handler struct {
 	mu sync.RWMutex
 
-	path       string
-	ioBuffer   io.ReadWriteSeeker
-	tempBuffer []byte
+	path      string
+	extension string
 
-	extension       string
-	negotiated      []hubs.Track
+	negotiated []hubs.Track
+
 	outputFormatCtx *avformat.FormatContext
 }
 
-func NewHandler(path string, buffer io.ReadWriteSeeker) *Handler {
+func NewHandler(path string) *Handler {
 	return &Handler{
-		path:       path,
-		ioBuffer:   buffer,
-		tempBuffer: make([]byte, bufferSize),
+		path: path,
 	}
 }
 
@@ -105,8 +101,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		}
 	}
 
-	avioCtx := avformat.AVIoAllocContext(outputFormatCtx, h.ioBuffer, &h.tempBuffer[0], bufferSize, avformat.AVIO_FLAG_WRITE, true)
-	outputFormatCtx.SetPb(avioCtx)
+	outputFormatCtx.SetPb(avformat.AVIOOpenDynBuf())
 
 	if extension == "mp4" {
 		dict := avutil.DictionaryNull()
@@ -128,30 +123,23 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 
 func (h *Handler) OnClosed(ctx context.Context) error {
 	log.Logger.Info("file session finish start")
-	h.outputFormatCtx.AvWriteTrailer()
-	avformat.AvIoContextFree(h.outputFormatCtx.Pb())
-	h.outputFormatCtx.AvformatFreeContext()
 
-	ioBuffer := h.ioBuffer
-	h.ioBuffer = nil
-	size, err := ioBuffer.Seek(0, io.SeekEnd)
-	if err != nil {
-		return fmt.Errorf("error seeking to end of buffer: %w", err)
-	}
-	_, _ = ioBuffer.Seek(0, io.SeekStart)
+	h.outputFormatCtx.AvWriteTrailer()
+	buf := avformat.AVIOCloseDynBuf(h.outputFormatCtx.Pb())
+	h.outputFormatCtx.AvformatFreeContext()
 
 	filepath := fmt.Sprintf("%s.%s", h.path, h.extension)
 	file, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
-	defer file.Close()
-	if _, err := io.Copy(file, ioBuffer); err != nil {
+	n, err := file.Write(buf)
+	if err != nil {
 		return fmt.Errorf("error copying to file: %w", err)
 	}
 	log.Logger.Info("file session is finished",
 		zap.String("filepath", filepath),
-		zap.Int("size", int(size)))
+		zap.Int("size", int(n)))
 	return nil
 }
 
@@ -178,9 +166,11 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 	if pkt == nil {
 		return nil
 	}
+
 	h.mu.Lock()
 	_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	h.mu.Unlock()
+
 	pkt.AvPacketUnref()
 	return nil
 }

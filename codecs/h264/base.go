@@ -28,11 +28,15 @@ func (b Base) AVMediaType() avutil.MediaType {
 }
 
 func (b Base) CodecType() types.CodecType {
-	return types.CodecTypeAV1
+	return types.CodecTypeH264
 }
 
 func (b Base) AVCodecID() avcodec.CodecID {
 	return avcodec.AV_CODEC_ID_H264
+}
+
+func (b Base) Extension() string {
+	return "mp4"
 }
 
 // RTPParser 는 RTP Packets들을 코덱의 고유 유닛으로 파싱하거나, 코덱의 고유 유닛을 RTP 패킷으로 패킷화 한다.

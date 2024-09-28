@@ -9,7 +9,6 @@ import (
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
-	"mediaserver-go/utils/types"
 	"strings"
 )
 
@@ -21,6 +20,7 @@ type AV1 struct {
 
 func NewAV1(config *Config) *AV1 {
 	return &AV1{
+		Base:   Base{},
 		config: config,
 	}
 }
@@ -44,18 +44,6 @@ func (v *AV1) Equals(codec codecs.Codec) bool {
 
 func (v *AV1) String() string {
 	return fmt.Sprintf("%s. width:%d,height:%d", v.MimeType(), v.Width(), v.Height())
-}
-
-func (v *AV1) MimeType() string {
-	return pion.MimeTypeAV1
-}
-
-func (v *AV1) MediaType() types.MediaType {
-	return types.MediaTypeVideo
-}
-
-func (v *AV1) CodecType() types.CodecType {
-	return types.CodecTypeAV1
 }
 
 func (v *AV1) Width() int {
