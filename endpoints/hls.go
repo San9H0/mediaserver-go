@@ -2,11 +2,10 @@ package endpoints
 
 import (
 	"fmt"
+	"mediaserver-go/utils/dto"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-
-	"mediaserver-go/utils/dto"
 )
 
 type HLSHandler struct {
@@ -49,9 +48,11 @@ func (h *HLSHandler) Register(e *echo.Echo) {
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
+			fmt.Println("[TESTDEBUG] init mp4 byte:", len(b))
 			return c.Blob(http.StatusOK, "video/mp4", b)
 		default:
 			b, err := handle.GetPayload(target)
+			fmt.Println("[TESTDEBUG] target:", target, ", mp4 byte:", len(b))
 			if err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, err)
 			}
@@ -104,13 +105,8 @@ func (h *HLSHandler) Handle(c echo.Context) error {
 		return err
 	}
 
-	var req dto.HLSRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-
 	streamID := token
-	resp, err := h.hlsServer.StartSession(streamID, req)
+	resp, err := h.hlsServer.StartSession(streamID, dto.HLSRequest{})
 	if err != nil {
 		return err
 	}

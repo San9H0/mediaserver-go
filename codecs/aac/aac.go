@@ -4,7 +4,6 @@ import (
 	"errors"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
@@ -40,6 +39,10 @@ func (a *AAC) String() string {
 	return a.MimeType()
 }
 
+func (a *AAC) HLSMIME() string {
+	return "mp4a.40.2"
+}
+
 func (a *AAC) Channels() int {
 	return a.config.Channels
 }
@@ -60,7 +63,7 @@ func (a *AAC) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
 	return pion.RTPCodecCapability{}, errors.New("unsupported webrtc codec")
 }
 
-func (a *AAC) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (a *AAC) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
 	codecCtx.SetCodecID(a.AVCodecID())
 	codecCtx.SetCodecType(a.AVMediaType())
 	codecCtx.SetSampleRate(a.SampleRate())
@@ -78,8 +81,4 @@ func (a *AAC) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, er
 
 func (a *AAC) BitStreamFilter(b []byte) [][]byte {
 	return [][]byte{b}
-}
-
-func (a *AAC) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
-	return bitstreamfilter.NewBitStream(a.CodecType())
 }

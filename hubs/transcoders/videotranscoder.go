@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/thirdparty/ffmpeg/swresample"
@@ -18,7 +17,7 @@ var (
 )
 
 type VideoTranscoder struct {
-	decoderBitStreamFilter bitstreamfilter.BitStreamFilter
+	decoderBitStreamFilter codecs.BitStreamFilter
 	decoder                *avcodec.Codec
 	decoderCtx             *avcodec.CodecContext
 	swrCtx                 *swresample.SwrContext
@@ -44,7 +43,7 @@ func (t *VideoTranscoder) Close() {
 }
 
 func (t *VideoTranscoder) Setup(source, target codecs.Codec) error {
-	bitStreamFilter := source.GetBitStreamFilter()
+	bitStreamFilter := source.GetBitStreamFilter(false)
 	decoder := avcodec.AvcodecFindDecoder(source.AVCodecID())
 	if decoder == nil {
 		return fmt.Errorf("could not find decoder: %w", errFailedToSetTranscodeCodec)
@@ -53,7 +52,7 @@ func (t *VideoTranscoder) Setup(source, target codecs.Codec) error {
 	if decoderCtx == nil {
 		return fmt.Errorf("could not allocate codec context: %w", errFailedToSetTranscodeCodec)
 	}
-	source.SetCodecContext(decoderCtx)
+	source.SetCodecContext(decoderCtx, nil)
 	if decoderCtx.AvCodecOpen2(decoder, nil) < 0 {
 		return fmt.Errorf("could not open codec: %w", errFailedToSetTranscodeCodec)
 	}
@@ -66,7 +65,11 @@ func (t *VideoTranscoder) Setup(source, target codecs.Codec) error {
 	if encoderCtx == nil {
 		return fmt.Errorf("could not allocate codec context: %w", errFailedToSetTranscodeCodec)
 	}
-	target.SetCodecContext(encoderCtx)
+	target.SetCodecContext(encoderCtx, &codecs.VideoTranscodeInfo{
+		GOPSize:       30,
+		FPS:           30,
+		MaxBFrameSize: 0,
+	})
 	if encoderCtx.AvCodecOpen2(encoder, nil) < 0 {
 		return fmt.Errorf("could not open codec: %w", errFailedToSetTranscodeCodec)
 	}
@@ -76,13 +79,12 @@ func (t *VideoTranscoder) Setup(source, target codecs.Codec) error {
 	t.decoderCtx = decoderCtx
 	t.encoder = encoder
 	t.encoderCtx = encoderCtx
-
 	return nil
 }
 
 func (t *VideoTranscoder) Transcode(unit units.Unit) []units.Unit {
-	payload := t.decoderBitStreamFilter.AddFilter(unit)
-
+	var result []units.Unit
+	payload := t.decoderBitStreamFilter.AddFilter(unit.Payload)
 	pkt := avcodec.AvPacketAlloc()
 	pkt.SetPTS(unit.PTS)
 	pkt.SetDTS(unit.DTS)
@@ -96,7 +98,6 @@ func (t *VideoTranscoder) Transcode(unit units.Unit) []units.Unit {
 
 	frame := avutil.AvFrameAlloc()
 	if ret := t.decoderCtx.AvCodecReceiveFrame(frame); ret < 0 {
-		fmt.Println("ret:", ret)
 		if avutil.AvAgain(ret) {
 			return nil
 		}
@@ -125,14 +126,12 @@ func (t *VideoTranscoder) Transcode(unit units.Unit) []units.Unit {
 		return nil
 	}
 
-	var result []units.Unit
-
 	result = append(result, units.Unit{
-		Payload:  recvPkt.Data()[4:],
+		Payload:  recvPkt.Data(),
 		PTS:      recvPkt.PTS(),
 		DTS:      recvPkt.DTS(),
 		Duration: recvPkt.Duration(),
-		TimeBase: t.encoderCtx.SampleRate(),
+		TimeBase: unit.TimeBase,
 	})
 
 	recvPkt.AvPacketFree()

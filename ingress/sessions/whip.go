@@ -115,17 +115,17 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 				zap.Uint32("ssrc", uint32(onTrack.remote.SSRC())),
 			)
 
-			typ, err := factory.NewBase(onTrack.remote.Codec().MimeType)
+			base, err := factory.NewBase(onTrack.remote.Codec().MimeType)
 			if err != nil {
 				return err
 			}
 
 			stats := rtpinbounder.NewStats(onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
 
-			hubSource := hubs.NewHubSource(typ)
+			hubSource := hubs.NewHubSource(base)
 			w.stream.AddSource(hubSource)
 
-			parser, err := typ.RTPParser(func(codec codecs.Codec) {
+			parser, err := base.RTPParser(func(codec codecs.Codec) {
 				hubSource.SetCodec(codec)
 			})
 			if err != nil {

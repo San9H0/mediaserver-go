@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 
@@ -29,8 +30,9 @@ const (
 type Handler struct {
 	mu sync.RWMutex
 
-	path      string
-	extension string
+	path       string
+	extension  string
+	audioStart atomic.Bool // TODO only audio record
 
 	negotiated []hubs.Track
 
@@ -72,7 +74,6 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		return err
 	}
 
-	fmt.Println("[TESTDEBUG] extension:", extension)
 	outputFormatCtx := avformat.NewAvFormatContextNull()
 	if ret := avformat.AvformatAllocOutputContext2(&outputFormatCtx, nil, "", fmt.Sprintf("output.%s", extension)); ret < 0 {
 		return errors.New("avformat context allocation failed")
@@ -92,7 +93,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		if avCodecCtx == nil {
 			return errors.New("codec context allocation failed")
 		}
-		sourceCodec.SetCodecContext(avCodecCtx)
+		sourceCodec.SetCodecContext(avCodecCtx, nil)
 		if ret := avCodecCtx.AvCodecOpen2(avCodec, nil); ret < 0 {
 			return errors.New("codec open failed")
 		}
@@ -154,30 +155,36 @@ func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext,
 		bitstream = &bitstreams.AVCC{}
 	}
 	return &TrackContext{
-		pkt:          avcodec.AvPacketAlloc(),
+		codec:        codec,
 		outputStream: outputStream,
-		writer:       writers.NewWriter(index, outputStream.TimeBase().Den(), track.GetCodec().CodecType(), codec.Decoder(), bitstream),
+		writer:       writers.NewWriter(index, outputStream.TimeBase().Den(), track.GetCodec(), codec.Decoder(), bitstream),
 	}, nil
 }
 
-func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
+func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, u units.Unit) error {
 	writer := trackCtx.writer
-	pkt := writer.WriteVideoPkt(unit, trackCtx.pkt)
-	if pkt == nil {
+	unit, ok := writer.BitStreamSummary(u)
+	if !ok {
 		return nil
 	}
+	pkt := writer.WriteVideoPkt(unit)
 
+	h.audioStart.Store(true)
 	h.mu.Lock()
 	_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	h.mu.Unlock()
 
 	pkt.AvPacketUnref()
+
 	return nil
 }
 
 func (h *Handler) OnAudio(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
+	if !h.audioStart.Load() {
+		return nil
+	}
 	writer := trackCtx.writer
-	pkt := writer.WriteAudioPkt(unit, trackCtx.pkt)
+	pkt := writer.WriteAudioPkt(unit)
 	if pkt == nil {
 		return nil
 	}

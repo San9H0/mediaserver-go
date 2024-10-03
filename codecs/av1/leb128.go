@@ -67,3 +67,11 @@ func LEB128MarshalTo(v uint, buf []byte) int {
 
 	return n
 }
+
+// LEB128MarshalTo encodes an unsigned integer with the LEB128 format.
+// Specification: https://aomediacodec.github.io/av1-spec/#leb128
+func LEB128Marshal(v uint) []byte {
+	buf := make([]byte, LEB128MarshalSize(v))
+	n := LEB128MarshalTo(v, buf)
+	return buf[:n]
+}

@@ -111,9 +111,9 @@ func (cp *AvCodecParameters) SetLevel(level int) {
 	cp.level = C.int(level)
 }
 
-func (cp *AvCodecParameters) SetTimeBase(r Rational) {
-	cp.framerate.num = r.num
-	cp.framerate.den = r.den
+func (cp *AvCodecParameters) SetTimeBase(num, den int) {
+	cp.framerate.num = C.int(num)
+	cp.framerate.den = C.int(den)
 }
 
 func (cp *AvCodecParameters) ExtraData() []byte {

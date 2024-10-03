@@ -103,7 +103,7 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
 	packetizer := trackCtx.packetizer
 	buf := trackCtx.buf
-	for _, rtpPacket := range packetizer.Packetize(unit) {
+	for _, rtpPacket := range packetizer.Packetize(unit.Payload) {
 		n, err := rtpPacket.MarshalTo(buf)
 		if err != nil {
 			continue
@@ -112,13 +112,14 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 			return err
 		}
 	}
+
 	return nil
 }
 
 func (h *Handler) OnAudio(ctx context.Context, trackCtx *TrackContext, unit units.Unit) error {
 	packetizer := trackCtx.packetizer
 	buf := trackCtx.buf
-	for _, rtpPacket := range packetizer.Packetize(unit) {
+	for _, rtpPacket := range packetizer.Packetize(unit.Payload) {
 		n, err := rtpPacket.MarshalTo(buf)
 		if err != nil {
 			continue

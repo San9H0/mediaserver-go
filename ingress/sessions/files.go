@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/codecs/factory"
 	"mediaserver-go/hubs"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
@@ -26,7 +25,7 @@ var (
 type trackContext struct {
 	hubSource       *hubs.HubSource
 	codec           codecs.Codec
-	bitStreamFilter bitstreamfilter.BitStreamFilter
+	bitStreamFilter codecs.BitStreamFilter
 }
 
 type FileSession struct {
@@ -70,19 +69,13 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, hubStr
 		trackCtx[i] = &trackContext{
 			hubSource:       source,
 			codec:           codec,
-			bitStreamFilter: codec.GetBitStreamFilter(),
+			bitStreamFilter: codec.GetBitStreamFilter(false),
 		}
 
 		switch mediaType {
 		case types.MediaTypeAudio:
 		case types.MediaTypeVideo:
-			videoCodec := codec.(codecs.VideoCodec)
-			videoCodec.SetVideoTranscodeInfo(codecs.VideoTranscodeInfo{
-				GOPSize:       30,
-				FPS:           30,
-				MaxBFrameSize: 0,
-			})
-			source.SetTranscodeCodec(videoCodec)
+			source.SetTranscodeCodec(codec.(codecs.VideoCodec))
 		}
 	}
 
@@ -105,7 +98,6 @@ func (s *FileSession) Run(ctx context.Context) error {
 	}()
 
 	var startTime time.Time
-
 	pkt := avcodec.AvPacketAlloc()
 	for {
 		select {
@@ -135,16 +127,17 @@ func (s *FileSession) Run(ctx context.Context) error {
 		diffus := time.Now().Sub(startTime).Microseconds()
 		delay := ptsTimeSec - (diffus)
 
-		for _, au := range trackCtx.bitStreamFilter.Filter(pkt.Data()) {
+		payloads := trackCtx.bitStreamFilter.Filter(pkt.Data())
+		for i, au := range payloads {
 			trackCtx.hubSource.Write(units.Unit{
 				Payload:  au,
 				PTS:      pkt.PTS(),
 				DTS:      pkt.DTS(),
 				Duration: pkt.Duration(),
 				TimeBase: stream.TimeBase().Den(),
+				Marker:   i == len(payloads)-1,
 			})
 		}
-
 		pkt.AvPacketUnref()
 
 		if types.MediaTypeFromFFMPEG(stream.CodecParameters().CodecType()) == types.MediaTypeVideo {

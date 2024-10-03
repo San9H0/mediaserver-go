@@ -1,7 +1,6 @@
 package vp8
 
 import (
-	"errors"
 	"github.com/pion/rtp"
 	pioncodecs "github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
@@ -40,19 +39,6 @@ func (b Base) Extension() string {
 
 func (b Base) RTPParser(cb func(codec codecs.Codec)) (codecs.RTPParser, error) {
 	return NewRTPParser(cb), nil
-	//var codec *VP8
-	//return NewRTPParser(func(datas [][]byte) [][]byte {
-	//	for _, d := range datas {
-	//		header, ok := GetFrameHeader(d)
-	//		if ok {
-	//			if codec == nil || (codec.Width() != header.Width || codec.Height() != header.Height) {
-	//				codec = NewVP8(header.Width, header.Height)
-	//			}
-	//			break
-	//		}
-	//	}
-	//	return datas
-	//}), nil
 }
 
 func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packetizer, error) {
@@ -60,9 +46,17 @@ func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packet
 }
 
 func (b Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (codecs.Codec, error) {
-	return nil, errors.New("not supported until")
+	config := Config{}
+	config.Width = param.Width()
+	config.Height = param.Height()
+	vp8Codec := NewVP8(&config)
+	return vp8Codec, nil
 }
 
 func (b Base) Decoder() codecs.Decoder {
 	return &Decoder{}
+}
+
+func (b Base) GetBitStreamFilter(fromTranscoding bool) codecs.BitStreamFilter {
+	return &BitStreamEmpty{}
 }

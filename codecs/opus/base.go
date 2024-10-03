@@ -1,7 +1,6 @@
 package opus
 
 import (
-	"errors"
 	"github.com/pion/rtp"
 	pinocodecs "github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
@@ -55,9 +54,18 @@ func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packet
 //}
 
 func (b Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (codecs.Codec, error) {
-	return nil, errors.New("not supported until")
+	config := NewConfig(Parameters{
+		Channels:     2,
+		SampleRate:   48000,
+		SampleFormat: int(avutil.AV_SAMPLE_FMT_FLT),
+	})
+	return NewOpus(config), nil
 }
 
 func (b Base) Decoder() codecs.Decoder {
 	return &Decoder{}
+}
+
+func (b Base) GetBitStreamFilter(fromTranscoding bool) codecs.BitStreamFilter {
+	return &BitStreamEmpty{}
 }

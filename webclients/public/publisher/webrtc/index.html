@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WHIP Client</title>
+</head>
+<body>
+
+<script src="../../scripts/webrtc/sdp.js"></script>
+<h1>WHIP Client</h1>
+
+<video id="pubVideo" controls></video>
+
+<h1>Select Codec</h1>
+
+<label for="videoCodec">Video Codec:</label>
+<select id="videoCodec">
+    <option value="AV1">AV1</option>
+    <option value="VP8">VP8</option>
+    <option value="H264">H.264</option>
+</select>
+
+<label for="audioCodec">Audio Codec:</label>
+<select id="audioCodec">
+    <option value="Opus">Opus</option>
+</select>
+
+
+<br><br>
+
+<!-- StreamKey 또는 Token을 입력받는 텍스트박스 -->
+<input type="text" id="streamKey" placeholder="Enter your StreamKey or Token" style="width: 300px;">
+
+<div class="box">
+    <button id="start">Start</button>
+</div>
+
+<script>
+    const audioEncodings = [{maxBitrate: 1024 * 1024}];
+    const singleVideoEncodings = [
+        {maxBitrate: 1024 * 1024 * 1024}
+    ];
+</script>
+
+<script>
+    async function sendOffer(publish, streamKey, offer) {
+        if (streamKey === "" || offer === "") {
+            throw new Error('Please enter your StreamKey or offer');
+        }
+        const serverHost = window.location.hostname;
+        const serverPort = window.location.port;
+
+        if (publish) {
+            const response = await fetch(`http://${serverHost}:${serverPort}/v1/whip`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/sdp',
+                    'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+                },
+                body: offer,
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to connect to WHEP server.');
+            }
+
+            return await response.text()
+        }
+
+        const response = await fetch(`http://${serverHost}:${serverPort}/v1/whep`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/sdp',
+                'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+            },
+            body: offer,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to connect to WHEP server.');
+        }
+
+        return await response.text()
+    }
+</script>
+
+<script>
+    const configuration = {
+        sdpSemantics: 'unified-plan',
+    };
+    // JavaScript를 사용하여 값 설정 가능
+    const streamKeyInput = document.getElementById('streamKey');
+    document.getElementById('streamKey').value = "streamkey";
+
+    let localStream;
+    let localAudioTrack;
+    let localVideoTrack;
+    let pubPC, pubAudioTransceiver, pubVideoTransceiver;
+
+    const pubVideo = document.getElementById('pubVideo');
+    const videoCodecSelector = document.getElementById('videoCodec');
+    const audioCodecSelector = document.getElementById('audioCodec');
+
+    const startBtn = document.getElementById('start');
+    async function startVideo() {
+        startBtn.disabled = true;
+        const source = "../../sample.mp4"
+        try {
+            if (pubVideo.src !== new URL(source, document.baseURI).href) {
+                pubVideo.src = source
+            }
+            await pubVideo.play()
+
+            const mediaStream = pubVideo.captureStream();
+            localStream = mediaStream
+            localAudioTrack = mediaStream.getAudioTracks()[0]
+            localVideoTrack = mediaStream.getVideoTracks()[0]
+        } catch (e) {
+            alert(`3 getUserMedia() error: ${e.name}`);
+        }
+    }
+
+    async function startPub() {
+        pubPC = new RTCPeerConnection(configuration);
+        pubAudioTransceiver = pubPC.addTransceiver(localStream.getAudioTracks()[0], {
+            direction : 'sendonly',
+            sendEncodings: audioEncodings,
+            stream: [localStream],
+        })
+        pubVideoTransceiver = pubPC.addTransceiver(localStream.getVideoTracks()[0], {
+            direction : 'sendonly',
+            sendEncodings: singleVideoEncodings,
+            stream: [localStream],
+        })
+
+        // if (true) { // simulcast 를 체크하지 않았을때?
+        let param = pubVideoTransceiver.sender.getParameters()
+        param.degradationPreference = "maintain-resolution";
+        await pubVideoTransceiver.sender.setParameters(param)
+        // }
+
+        console.log(RTCRtpSender.getCapabilities("video").codecs)
+
+
+        const videoCodec = videoCodecSelector.value
+        let videoProfile = ""
+        if (videoCodec === "h264") {
+            // videoProfile = ""
+            // videoProfile = "42e01f"; // "42001f", "42e01f" // "4D401F"
+            videoProfile = "42001f"
+        } else if (videoCodec === "vp9") {
+            videoProfile = "profile-id=1";
+        }
+        console.log("videocodec:", videoCodec)
+
+        let selectedCodecs = RTCRtpSender.getCapabilities("video").codecs.filter(codec => {
+            return codec.mimeType.toLowerCase() === `video/${videoCodec}`.toLowerCase()
+        })
+        console.log("selected selectedCodec:", selectedCodecs)
+
+        if (videoProfile !== "") {
+            selectedCodecs = [selectedCodecs.find(codec => {
+                if (videoProfile === "") {
+                    return true
+                }
+                let _a;
+                return (
+                    codec.sdpFmtpLine && ((_a = codec.sdpFmtpLine) === null || _a === void 0 ? void 0 : _a.indexOf(`profile-level-id=${videoProfile}`))
+                )
+            })]
+        }
+
+        if (selectedCodecs.length > 0) {
+            pubVideoTransceiver.setCodecPreferences(selectedCodecs)
+        }
+        //
+
+        // const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
+        // const opusFilteredCodec = audioCodecs.filter(codec => {
+        //     return codec.mimeType.toLowerCase() === 'audio/opus'
+        // })
+        // pubAudioTransceiver.setCodecPreferences(opusFilteredCodec)
+
+        pubPC.addEventListener('icecandidate',async event => {
+        });
+        pubPC.addEventListener('iceconnectionstatechange', e => {
+        });
+        pubPC.ontrack = e => {
+            console.log("pubPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
+        };
+        console.log('Added local stream to pc1');
+
+        const offer = await pubPC.createOffer()
+        await pubPC.setLocalDescription(offer)
+        console.log("offer:", offer.sdp)
+
+        const answerSDP = await sendOffer(true, streamKeyInput.value.trim(), offer.sdp)
+        console.log("answer:", answerSDP)
+
+        await pubPC.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: answerSDP
+        }));
+    }
+
+    async function start() {
+        await startVideo();
+        await startPub();
+    }
+
+
+    startBtn.addEventListener('click', start);
+
+</script>
+</body>
+</html>

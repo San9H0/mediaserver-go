@@ -10,9 +10,11 @@ type Unit struct {
 	DTS      int64
 	Duration int64
 	TimeBase int // audio: sampleRate, video: timebase
+	Marker   bool
+	Flag     int
 }
 
 func (u Unit) String() string {
-	return fmt.Sprintf("Unit{PTS: %d, DTS: %d, Duration: %d, TimeBase: %d,  Payload: %d bytes}",
-		u.PTS, u.DTS, u.Duration, u.TimeBase, len(u.Payload))
+	return fmt.Sprintf("Unit{PTS: %d, DTS: %d, Duration: %d, TimeBase: %d,  Payload: %d bytes, Marker:%v}",
+		u.PTS, u.DTS, u.Duration, u.TimeBase, len(u.Payload), u.Marker)
 }

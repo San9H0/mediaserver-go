@@ -177,7 +177,6 @@ func SPSPPSFromAVCCExtraData(data []byte) (sps []byte, pps []byte) {
 }
 
 func DropNalUnit(naluType h264.NALUType) bool {
-
 	switch naluType {
 	case h264.NALUTypeSEI, h264.NALUTypeFillerData, h264.NALUTypeAccessUnitDelimiter:
 		return true

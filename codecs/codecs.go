@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	pion "github.com/pion/webrtc/v3"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
@@ -16,18 +15,24 @@ var (
 	errUnsupportedWebRTC = errors.New("unsupported webrtc codec")
 )
 
+type BitStreamFilter interface {
+	AddFilter(payload []byte) []byte
+	Filter([]byte) [][]byte
+}
+
 type Codec interface {
 	Base
 	RTPCodecCapability
 
 	String() string
+	HLSMIME() string
 	Equals(codec Codec) bool
 
-	SetCodecContext(codecCtx *avcodec.CodecContext)
+	SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *VideoTranscodeInfo)
 
 	WebRTCCodecCapability() (pion.RTPCodecCapability, error)
 
-	GetBitStreamFilter() bitstreamfilter.BitStreamFilter
+	GetBitStreamFilter(fromTranscoding bool) BitStreamFilter
 	ExtraData() []byte
 }
 
@@ -43,8 +48,6 @@ type AudioCodec interface {
 type VideoCodec interface {
 	Codec
 
-	SetVideoTranscodeInfo(info VideoTranscodeInfo)
-
 	Width() int
 	Height() int
 	ClockRate() uint32
@@ -58,7 +61,7 @@ func GetExtension(videoCodec VideoCodec, audioCodec AudioCodec) (string, error) 
 		switch videoCodec.CodecType() {
 		case types.CodecTypeVP8:
 			extension = "webm"
-		case types.CodecTypeH264:
+		case types.CodecTypeH264, types.CodecTypeAV1:
 			extension = "mp4"
 		default:
 			return "", fmt.Errorf("video codec:%v. %w", videoCodec.CodecType(), errUnsupportedCodec)
@@ -67,7 +70,7 @@ func GetExtension(videoCodec VideoCodec, audioCodec AudioCodec) (string, error) 
 		switch videoCodec.CodecType() {
 		case types.CodecTypeVP8:
 			extension = "mkv"
-		case types.CodecTypeH264:
+		case types.CodecTypeH264, types.CodecTypeAV1:
 			extension = "m4v"
 		default:
 			return "", fmt.Errorf("video codec:%v. %w", videoCodec.CodecType(), errUnsupportedCodec)

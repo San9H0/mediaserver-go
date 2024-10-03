@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/bluenviron/mediacommon/pkg/codecs/h264"
 	"github.com/pion/rtp"
+	"go.uber.org/zap"
 	"mediaserver-go/codecs"
+	"mediaserver-go/utils/log"
 )
 
 type RTPParser struct {
@@ -14,6 +16,8 @@ type RTPParser struct {
 
 	onCodec  func(codec codecs.Codec)
 	sps, pps []byte
+
+	spsTemp, ppsTemp []byte
 }
 
 func NewH264Parser(cb func(codec codecs.Codec)) *RTPParser {
@@ -24,29 +28,35 @@ func NewH264Parser(cb func(codec codecs.Codec)) *RTPParser {
 
 func (h *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 	var payloads [][]byte
-	var sps, pps []byte
 	for _, payload := range h.parse(rtpPacket.Payload) {
 		nal := h264.NALUType(payload[0] & 0x1F)
 		switch nal {
 		case h264.NALUTypeSEI, h264.NALUTypeAccessUnitDelimiter, h264.NALUTypeFillerData:
 			// drop
 		case h264.NALUTypeSPS:
-			sps = payload
+			h.spsTemp = payload
+			h.ppsTemp = nil
 			// drop
 		case h264.NALUTypePPS:
-			pps = payload
+			h.ppsTemp = payload
 			// drop
 		default:
 			payloads = append(payloads, payload)
 		}
 	}
 
-	if len(sps) != 0 && !bytes.Equal(h.sps, sps) || len(pps) != 0 && !bytes.Equal(h.pps, pps) {
-		h.sps = bytes.Clone(sps)
-		h.pps = bytes.Clone(pps)
+	if len(h.spsTemp) == 0 || len(h.ppsTemp) == 0 {
+		return nil
+	}
+
+	if !bytes.Equal(h.sps, h.spsTemp) || !bytes.Equal(h.pps, h.ppsTemp) {
+		h.sps = bytes.Clone(h.spsTemp)
+		h.pps = bytes.Clone(h.ppsTemp)
 		config := Config{}
 		if err := config.UnmarshalFromSPSPPS(h.sps, h.pps); err == nil {
 			h.onCodec(NewH264(&config))
+		} else {
+			log.Logger.Error("failed to unmarshal sps pps", zap.Error(err))
 		}
 	}
 
@@ -100,7 +110,6 @@ func (h *RTPParser) parse(rtpPayload []byte) [][]byte {
 	)
 
 	naluType := h264.NALUType(rtpPayload[commonHeaderIdx] & 0x1F)
-
 	switch {
 	case 1 <= naluType && naluType <= 23:
 		return [][]byte{rtpPayload}

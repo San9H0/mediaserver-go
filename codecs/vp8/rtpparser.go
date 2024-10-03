@@ -11,7 +11,8 @@ import (
 type RTPParser struct {
 	fragments []byte
 
-	cb func(codec codecs.Codec)
+	codec codecs.Codec
+	cb    func(codec codecs.Codec)
 }
 
 func NewRTPParser(cb func(codec codecs.Codec)) *RTPParser {
@@ -28,34 +29,25 @@ func (v *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 		return nil
 	}
 
-	var fragments []byte
 	v.fragments = append(v.fragments, vp8Payload...)
 	if rtpPacket.Marker {
-		fragments = v.fragments
+		fragments := v.fragments
 		v.fragments = nil
-	}
 
-	s := (rtpPacket.Payload[0] & 0x10) >> 4
-	if vp8Payload[0]&0x01 == 0 && s == 1 { // keyframe
-		config := NewConfig()
-		if err := config.Unmarshal(rtpPacket.Payload, vp8Payload); err == nil {
-			v.cb(NewVP8(config))
+		keyFrame := fragments[0]&0x01 == 0
+		//version := (fragments[0] & 0x0e) >> 1
+		//showFrame := (vp8Payload[0] & 0x10) >> 4
+		if keyFrame { // keyframe
+			config := NewConfig()
+			if err := config.Unmarshal(fragments); err == nil {
+				vp8Codec := NewVP8(config)
+				if v.codec == nil || !vp8Codec.Equals(v.codec) {
+					v.codec = vp8Codec
+					v.cb(vp8Codec)
+				}
+			}
 		}
+		return [][]byte{fragments}
 	}
-
-	//if err := v.config.Unmarshal(rtpPacket.Payload, vp8Payload); err != nil {
-	//	log.Logger.Error("vp8 factory err", zap.Error(err))
-	//}
-	//
-	//if codec, _ := v.config.GetCodec(); codec != nil {
-	//	if v.prevCodec != codec {
-	//		v.invokeCodec(codec)
-	//		v.prevCodec = codec
-	//	}
-	//}
-	//
-	//return [][]byte{vp8Payload}
-
-	return [][]byte{fragments}
-
+	return nil
 }

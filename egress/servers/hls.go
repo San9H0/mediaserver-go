@@ -11,7 +11,6 @@ import (
 	"mediaserver-go/egress/sessions/hls"
 	"mediaserver-go/hubs"
 	"mediaserver-go/utils"
-	"mediaserver-go/utils/buffers"
 	"mediaserver-go/utils/dto"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
@@ -36,14 +35,13 @@ func NewHLSServer(hub *hubs.Hub) (HLSServer, error) {
 
 func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSResponse, error) {
 	stream, ok := h.hub.GetStream(streamID)
-	fmt.Println("[TESTDEBUG] StartSession.. ok:", ok, " streamID:", streamID)
 	if !ok {
 		return dto.HLSResponse{}, errors.New("stream not found")
 	}
 
 	hlsStream := newHLSStream()
 
-	handler := hls.NewHandler(buffers.NewMemory(), hlsStream)
+	handler := hls.NewHandler(hlsStream)
 	if err := handler.Init(context.Background(), stream.Sources()); err != nil {
 		return dto.HLSResponse{}, err
 	}
@@ -91,6 +89,7 @@ func (h *HLSServer) StartSession(streamID string, req dto.HLSRequest) (dto.HLSRe
 	hlsStream.master = &master
 	hlsStream.hlsmedia = &hlsmedia
 	hlsStream.llhlsMedia = &llhlsmedia
+	fmt.Println("[TESTDEBUG] mu.Lock..")
 	h.mu.Lock()
 	h.hlsStreams[streamID] = hlsStream
 	h.mu.Unlock()

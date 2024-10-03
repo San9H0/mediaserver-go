@@ -244,11 +244,11 @@ func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*TrackContext,
 	pt := uint8(sender.GetParameters().Codecs[0].PayloadType)
 	clockRate := sender.GetParameters().Codecs[0].ClockRate
 
-	typ, err := factory.NewBase(sender.GetParameters().Codecs[0].MimeType)
+	base, err := factory.NewBase(sender.GetParameters().Codecs[0].MimeType)
 	if err != nil {
 		return nil, err
 	}
-	packetizer, err := typ.RTPPacketizer(pt, ssrc, clockRate)
+	packetizer, err := base.RTPPacketizer(pt, ssrc, clockRate)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +294,6 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *TrackContext, unit unit
 			}
 			rtpPacket.Header.SetExtension(uint8(id), payload)
 		}
-
 		n, err := rtpPacket.MarshalTo(buf)
 		if err != nil {
 			fmt.Println("marshal rtp err:", err)

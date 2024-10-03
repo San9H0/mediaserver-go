@@ -1,7 +1,7 @@
 package av1
 
 import (
-	"errors"
+	"fmt"
 	"github.com/pion/rtp"
 	pioncodecs "github.com/pion/rtp/codecs"
 	pion "github.com/pion/webrtc/v3"
@@ -47,9 +47,21 @@ func (b Base) RTPPacketizer(pt uint8, ssrc uint32, clockRate uint32) (rtp.Packet
 }
 
 func (b Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (codecs.Codec, error) {
-	return nil, errors.New("not supported until")
+	seqHeader := ParseExtraData(param.ExtraData())
+	config := &Config{}
+	err := config.UnmarshalSequenceHeader(seqHeader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal sps pps: %v", err)
+	}
+	av1Codec := NewAV1(config)
+	return av1Codec, nil
+	//return nil, errors.New("not supported until")
 }
 
 func (b Base) Decoder() codecs.Decoder {
 	return &Decoder{}
+}
+
+func (b Base) GetBitStreamFilter(fromTranscoding bool) codecs.BitStreamFilter {
+	return &OBUBitStreamFilter{}
 }

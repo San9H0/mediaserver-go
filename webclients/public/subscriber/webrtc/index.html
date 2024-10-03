@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WHEP Client</title>
+</head>
+<body>
+
+<script src="../../scripts/webrtc/sdp.js"></script>
+<h1>WHEP Client</h1>
+
+<video id="subVideo"></video>
+
+<br><br>
+
+<!-- StreamKey 또는 Token을 입력받는 텍스트박스 -->
+<input type="text" id="streamKey" placeholder="Enter your StreamKey or Token" style="width: 300px;">
+
+<div class="box">
+    <button id="start">Start</button>
+</div>
+
+<script>
+</script>
+
+<script>
+    async function sendOffer(publish, streamKey, offer) {
+        if (streamKey === "" || offer === "") {
+            throw new Error('Please enter your StreamKey or offer');
+        }
+        const serverHost = window.location.hostname;
+        const serverPort = window.location.port;
+
+        if (publish) {
+            const response = await fetch(`http://${serverHost}:${serverPort}/v1/whip`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/sdp',
+                    'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+                },
+                body: offer,
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to connect to WHEP server.');
+            }
+
+            return await response.text()
+        }
+
+        const response = await fetch(`http://${serverHost}:${serverPort}/v1/whep`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/sdp',
+                'Authorization': `Bearer ${streamKey}` // Authorization 헤더에 Bearer 토큰 설정
+            },
+            body: offer,
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to connect to WHEP server.');
+        }
+
+        return await response.text()
+    }
+</script>
+
+<script>
+    const configuration = {
+        sdpSemantics: 'unified-plan',
+    };
+    // JavaScript를 사용하여 값 설정 가능
+    const streamKeyInput = document.getElementById('streamKey');
+    document.getElementById('streamKey').value = "streamkey";
+
+    let subPC, subAudioTransceiver, subVideoTransceiver;
+
+    const subVideo = document.getElementById('subVideo');
+
+    const startBtn = document.getElementById('start');
+
+    async function startSub() {
+        subPC = new RTCPeerConnection(configuration);
+        subAudioTransceiver = subPC.addTransceiver('audio', {
+            direction : 'recvonly',
+        })
+        subVideoTransceiver = subPC.addTransceiver('video', {
+            direction : 'recvonly',
+        })
+
+        subPC.addEventListener('icecandidate',async event => {
+        });
+        subPC.addEventListener('iceconnectionstatechange', e => {
+        });
+        subPC.ontrack = async e => {
+            console.log("subPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
+            if (subVideo.srcObject !== e.streams[0]) {
+                subVideo.srcObject = e.streams[0];
+                await subVideo.play()
+                console.log('subPC received remote stream');
+            }
+        };
+
+        const offer = await subPC.createOffer()
+        console.log("offer.sdp:", offer.sdp)
+        await subPC.setLocalDescription(offer)
+        const answerSDP = await sendOffer(false, streamKeyInput.value.trim(), offer.sdp)
+        console.log("answer:", answerSDP)
+        await subPC.setRemoteDescription(new RTCSessionDescription({
+            type: 'answer',
+            sdp: answerSDP
+        }));
+
+        console.log("subPC:", subPC.getTransceivers().length)
+    }
+
+    async function start() {
+        await startSub();
+    }
+    startBtn.addEventListener('click', start);
+
+
+
+</script>
+</body>
+</html>

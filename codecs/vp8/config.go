@@ -14,7 +14,7 @@ func NewConfig() *Config {
 	return &Config{}
 }
 
-func (v *Config) Unmarshal(rtpPacket, vp8Payload []byte) error {
+func (v *Config) Unmarshal(vp8Payload []byte) error {
 	vp8Decoder := vp8.NewDecoder()
 	vp8Decoder.Init(bytes.NewReader(vp8Payload), len(vp8Payload))
 	vp8Frame, err := vp8Decoder.DecodeFrameHeader()

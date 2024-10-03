@@ -64,3 +64,10 @@ func (b Base) CodecFromAVCodecParameters(param *avcodec.AvCodecParameters) (code
 func (b Base) Decoder() codecs.Decoder {
 	return &Decoder{}
 }
+
+func (b Base) GetBitStreamFilter(fromTranscoding bool) codecs.BitStreamFilter {
+	if fromTranscoding {
+		return &BitStreamAnnexB{}
+	}
+	return &BitStreamAVC{}
+}

@@ -38,8 +38,16 @@ func (cc *CodecContext) SetCodecID(codecID CodecID) {
 	cc.codec_id = C.enum_AVCodecID(codecID)
 }
 
+func (cc *CodecContext) Profile() int {
+	return int(cc.profile)
+}
+
 func (cc *CodecContext) SetProfile(profile int) {
 	cc.profile = C.int(profile)
+}
+
+func (cc *CodecContext) Level() int {
+	return int(cc.level)
 }
 
 func (cc *CodecContext) SetLevel(level int) {
@@ -137,6 +145,10 @@ func (cc *CodecContext) SetExtraData(data []byte) {
 	cc.extradata_size = C.int(len(data))
 }
 
+func (cc *CodecContext) ExtraData() []byte {
+	return C.GoBytes(unsafe.Pointer(cc.extradata), C.int(cc.extradata_size))
+}
+
 func (cc *CodecContext) ChangeExtraData(data []byte) {
 	cc.extradata = (*C.uint8_t)(C.CBytes(data))
 	cc.extradata_size = C.int(len(data))
@@ -164,4 +176,8 @@ func (cc *CodecContext) AvCodecParametersToContext(param *AvCodecParameters) int
 
 func (cc *CodecContext) PrivData() unsafe.Pointer {
 	return unsafe.Pointer(cc.priv_data)
+}
+
+func (cc *CodecContext) SetThreadCount(count int) {
+	cc.thread_count = C.int(count)
 }

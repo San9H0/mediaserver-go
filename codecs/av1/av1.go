@@ -5,7 +5,6 @@ import (
 	"github.com/pion/sdp/v3"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
@@ -46,6 +45,10 @@ func (v *AV1) String() string {
 	return fmt.Sprintf("%s. width:%d,height:%d", v.MimeType(), v.Width(), v.Height())
 }
 
+func (v *AV1) HLSMIME() string {
+	return createAV1MIME(v.config.header)
+}
+
 func (v *AV1) Width() int {
 	return v.config.Width()
 }
@@ -68,17 +71,43 @@ func (v *AV1) PixelFormat() int {
 
 // ExtraData use readonly
 func (v *AV1) ExtraData() []byte {
-	return nil
+	b, _ := v.config.MarshalToExtraData()
+	return b
 }
 
-func (v *AV1) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (v *AV1) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
 	codecCtx.SetCodecID(v.AVCodecID())
 	codecCtx.SetCodecType(v.AVMediaType())
 	codecCtx.SetWidth(v.Width())
 	codecCtx.SetHeight(v.Height())
+	codecCtx.SetLevel(5)
 	codecCtx.SetTimeBase(avutil.NewRational(1, int(v.FPS())))
+	//codecCtx.SetTimeBase(avutil.NewRational(1, 15360))
 	codecCtx.SetPixelFormat(avutil.PixelFormat(v.PixelFormat()))
 	codecCtx.SetExtraData(v.ExtraData())
+	fmt.Println("AV1 SetCodecContext")
+	fmt.Println("AV1 codecID:", v.AVCodecID())
+	fmt.Println("AV1 codecType:", v.AVMediaType())
+	fmt.Println("AV1 width:", v.Width())
+	fmt.Println("AV1 height:", v.Height())
+	fmt.Println("AV1 timebase:", avutil.NewRational(1, 15360))
+	fmt.Println("AV1 pixelFormat:", avutil.PixelFormat(v.PixelFormat()))
+	fmt.Println("AV1 extraData:", v.ExtraData())
+	fmt.Println("transcodeInfo:", transcodeInfo)
+	if transcodeInfo != nil {
+		codecCtx.SetGOP(transcodeInfo.GOPSize)
+		codecCtx.SetFrameRate(avutil.NewRational(transcodeInfo.FPS, 1))
+		codecCtx.SetMaxBFrames(transcodeInfo.MaxBFrameSize)
+		avutil.AvOptSet(codecCtx.PrivData(), "preset", "fast", 0)
+		avutil.AvOptSetInt(codecCtx.PrivData(), "cpu-used", 6, 0)
+		//avutil.AvOptSetInt(codecCtx.PrivData(), "tiles", 4, 0)
+		avutil.AvOptSetInt(codecCtx.PrivData(), "end-usage", 3, 0)
+		avutil.AvOptSetInt(codecCtx.PrivData(), "cq-level", 30, 0)
+		avutil.AvOptSetInt(codecCtx.PrivData(), "enable-dlf", 0, 0)
+		avutil.AvOptSetInt(codecCtx.PrivData(), "aq-mode", 0, 0)
+		codecCtx.SetThreadCount(4)
+	}
+
 }
 
 func (v *AV1) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
@@ -114,12 +143,4 @@ func (v *AV1) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, er
 			},
 		},
 	}, nil
-}
-
-func (v *AV1) SetVideoTranscodeInfo(info codecs.VideoTranscodeInfo) {
-	return
-}
-
-func (v *AV1) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
-	return bitstreamfilter.NewBitStream(v.CodecType())
 }

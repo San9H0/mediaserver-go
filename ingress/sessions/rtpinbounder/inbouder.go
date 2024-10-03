@@ -70,15 +70,18 @@ func (i *Inbounder) Run(ctx context.Context, hubTrack *hubs.HubSource, stats *St
 
 		stats.CalcRTPStats(rtpPacket, n)
 
-		for _, payload := range i.parser.Parse(rtpPacket) {
+		payloads := i.parser.Parse(rtpPacket)
+		for index, payload := range payloads {
 			hubTrack.Write(units.Unit{
 				Payload:  payload,
 				PTS:      int64(pts),
 				DTS:      int64(pts),
 				Duration: int64(duration),
 				TimeBase: i.timebase,
+				Marker:   index == len(payloads)-1,
 			})
 		}
+
 		prevTS = rtpPacket.Timestamp
 	}
 

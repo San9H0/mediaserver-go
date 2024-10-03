@@ -135,11 +135,11 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if value != flvtag.SoundFormatAAC {
 					return fmt.Errorf("unsupported audio codec: %v", v)
 				}
-				typ, err := factory.NewBase("audio/aac")
+				base, err := factory.NewBase("audio/aac")
 				if err != nil {
 					return err
 				}
-				h.audioSource = hubs.NewHubSource(typ)
+				h.audioSource = hubs.NewHubSource(base)
 				h.stream.AddSource(h.audioSource)
 			}
 		}
@@ -187,8 +187,8 @@ func (h *RTMPSession) OnAudio(timestamp uint32, payload io.Reader) error {
 			DTS:      int64(timestamp),
 			Duration: int64(duration),
 			TimeBase: 1000,
+			Marker:   true,
 		})
-
 	}
 	return nil
 }
@@ -216,6 +216,7 @@ func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
 	case flvtag.AVCPacketTypeNALU:
 		duration := timestamp - h.prevVideoTS
 		h.prevVideoTS = timestamp
+
 		for _, au := range format.GetAUFromAVC(body) {
 			h.videoSource.Write(units.Unit{
 				Payload:  au,
@@ -223,6 +224,7 @@ func (h *RTMPSession) OnVideo(timestamp uint32, payload io.Reader) error {
 				DTS:      int64(timestamp),
 				Duration: int64(duration),
 				TimeBase: 1000,
+				Marker:   true,
 			})
 		}
 	case flvtag.AVCPacketTypeEOS:

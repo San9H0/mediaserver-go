@@ -10,11 +10,10 @@ import (
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/types"
-	"mediaserver-go/utils/units"
 )
 
 type Packetizer interface {
-	Packetize(unit units.Unit) []*rtp.Packet
+	Packetize(payload []byte) []*rtp.Packet
 }
 
 type CommonPacketizer struct {
@@ -52,8 +51,8 @@ func NewPacketizer(parameters engines.RTPCodecParameters, codec hubcodecs.Codec)
 
 }
 
-func (p *CommonPacketizer) Packetize(unit units.Unit) []*rtp.Packet {
-	return p.packetizer.Packetize(unit.Payload, p.samples)
+func (p *CommonPacketizer) Packetize(payload []byte) []*rtp.Packet {
+	return p.packetizer.Packetize(payload, p.samples)
 }
 
 type H264Packetizer struct {
@@ -67,14 +66,14 @@ type H264Packetizer struct {
 	sps2, pps2 []byte
 }
 
-func (h *H264Packetizer) Packetize(unit units.Unit) []*rtp.Packet {
-	naluTyp := h264.NALUType(unit.Payload[0] & 0x1f)
+func (h *H264Packetizer) Packetize(payload []byte) []*rtp.Packet {
+	naluTyp := h264.NALUType(payload[0] & 0x1f)
 	if naluTyp == h264.NALUTypeSPS {
-		h.sps2 = unit.Payload
+		h.sps2 = payload
 		return nil
 	}
 	if naluTyp == h264.NALUTypePPS {
-		h.pps2 = unit.Payload
+		h.pps2 = payload
 		return nil
 	}
 	if naluTyp == h264.NALUTypeIDR {
@@ -86,5 +85,5 @@ func (h *H264Packetizer) Packetize(unit units.Unit) []*rtp.Packet {
 		_ = h.packetizer.Packetize(h.pps2, h.samples)
 	}
 
-	return h.packetizer.Packetize(unit.Payload, h.samples)
+	return h.packetizer.Packetize(payload, h.samples)
 }

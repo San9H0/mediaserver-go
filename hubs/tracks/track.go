@@ -3,7 +3,6 @@ package tracks
 import (
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
-	"mediaserver-go/hubs/transcoders"
 	"mediaserver-go/utils"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/units"
@@ -12,8 +11,6 @@ import (
 
 type Track struct {
 	mu sync.RWMutex
-
-	transcoder *transcoders.AudioTranscoder
 
 	codec     codecs.Codec
 	ch        chan units.Unit

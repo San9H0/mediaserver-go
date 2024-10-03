@@ -5,7 +5,6 @@ import (
 	"github.com/pion/sdp/v3"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
@@ -44,6 +43,10 @@ func (o *Opus) String() string {
 	return o.MimeType()
 }
 
+func (o *Opus) HLSMIME() string {
+	return "Opus"
+}
+
 func (o *Opus) GetBase() codecs.Base {
 	return o.Base
 }
@@ -72,7 +75,7 @@ func (o *Opus) ExtraData() []byte {
 	return nil
 }
 
-func (o *Opus) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (o *Opus) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
 	codecCtx.SetCodecID(o.AVCodecID())
 	codecCtx.SetCodecType(o.AVMediaType())
 	codecCtx.SetSampleRate(o.SampleRate())
@@ -121,8 +124,4 @@ func (o *Opus) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 			},
 		},
 	}, nil
-}
-
-func (o *Opus) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
-	return bitstreamfilter.NewBitStream(o.CodecType())
 }

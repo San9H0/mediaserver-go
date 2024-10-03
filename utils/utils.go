@@ -38,3 +38,10 @@ func RandomUint32() uint32 {
 func GetPointer[T any](v T) *T {
 	return &v
 }
+
+func GetIntFromBool(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}

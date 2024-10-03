@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.uber.org/zap"
 	"mediaserver-go/parsers/bitstreams"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"mediaserver-go/codecs"
@@ -30,6 +32,7 @@ type Handler struct {
 
 	endpoint Endpoint
 
+	audioStart      atomic.Bool
 	extension       string
 	negotiated      []hubs.Track
 	outputFormatCtx *avformat.FormatContext
@@ -43,31 +46,10 @@ func NewHandler(endpoint Endpoint) *Handler {
 }
 
 func (h *Handler) CodecString(mediaType types.MediaType) string {
-	for i, stream := range h.outputFormatCtx.Streams() {
-		if types.MediaTypeFromFFMPEG(stream.CodecParameters().CodecType()) != mediaType {
-			continue
-		}
-		codecType := types.CodecTypeFromFFMPEG(stream.CodecParameters().CodecID())
-		switch codecType {
-		case types.CodecTypeH264:
-			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
-			videoCodec, ok := h.negotiated[i].GetCodec().(codecs.VideoCodec)
-			if !ok {
-				continue
-			}
-			profile := stream.CodecParameters().Profile()
-			constraintFlags := videoCodec.ExtraData()[2]
-			level := stream.CodecParameters().Level()
-			return fmt.Sprintf("%s.%02X%02X%02x",
-				str,
-				profile, constraintFlags, level)
-		case types.CodecTypeAAC:
-			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
-			audioObjectType := 2
-			return fmt.Sprintf("%s.40.%d", str, audioObjectType)
-		case types.CodecTypeOpus:
-			str := avutil.AvFourcc2str(stream.CodecParameters().CodecTag())
-			return fmt.Sprintf("%s", str)
+	for _, negotiated := range h.negotiated {
+		codec := negotiated.GetCodec()
+		if codec.MediaType() == mediaType {
+			return codec.HLSMIME()
 		}
 	}
 	return ""
@@ -99,7 +81,7 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		negotiated = append(negotiated, track)
 	}
 
-	if videoCodec.CodecType() != types.CodecTypeH264 {
+	if videoCodec.CodecType() != types.CodecTypeH264 && videoCodec.CodecType() != types.CodecTypeAV1 {
 		return errors.New("unsupported video codec")
 	}
 
@@ -128,23 +110,30 @@ func (h *Handler) Init(ctx context.Context, sources []*hubs.HubSource) error {
 		if avCodecCtx == nil {
 			return errors.New("codec context allocation failed")
 		}
-		sourceCodec.SetCodecContext(avCodecCtx)
+		sourceCodec.SetCodecContext(avCodecCtx, nil)
 		if ret := avCodecCtx.AvCodecOpen2(avCodec, nil); ret < 0 {
 			return errors.New("codec open failed")
 		}
 		if ret := avcodec.AvCodecParametersFromContext(outputStream.CodecParameters(), avCodecCtx); ret < 0 {
 			return errors.New("codec parameters from context failed")
 		}
+		if sourceCodec.MediaType() == types.MediaTypeVideo {
+			outputStream.SetTimeBase(1, 15360)
+		}
+		fmt.Println("[TESTDEBUG] outputStream.CodecID:", outputStream.CodecParameters().CodecID())
+		fmt.Println("[TESTDEBUG] outputStream.CodecType:", outputStream.CodecParameters().CodecType())
+		fmt.Println("[TESTDEBUG] outputStream.Width:", outputStream.CodecParameters().Width())
+		fmt.Println("[TESTDEBUG] outputStream.Height:", outputStream.CodecParameters().Height())
+		fmt.Println("[TESTDEBUG] outputStream.TimeBase:", outputStream.TimeBase())
+		fmt.Println("[TESTDEBUG] outputStream.Level:", outputStream.CodecParameters().Level())
+		fmt.Println("[TESTDEBUG] outputStream.CodecParameters().ExtraData:", outputStream.CodecParameters().ExtraData())
+
 	}
 
 	h.outputFormatCtx.SetPb(avformat.AVIOOpenDynBuf())
 
 	dict := avutil.DictionaryNull()
 	avutil.AvDictSet(&dict, "movflags", "frag_keyframe+empty_moov+default_base_moof", 0)
-
-	if outputFormatCtx.Flags()&0x0001 == 0 {
-
-	}
 
 	if ret := outputFormatCtx.AvformatWriteHeader(&dict); ret < 0 {
 		return errors.New("avformat write header failed")
@@ -164,34 +153,11 @@ func (h *Handler) OnClosed(ctx context.Context) error {
 	log.Logger.Info("hls Handler finish start")
 
 	// TODO 남아있는 것 모두 정리.
-
-	//avformat.AvIoContextFree(h.outputFormatCtx.Pb())
-	//h.outputFormatCtx.AvformatFreeContext()
-
-	//ioBuffer := h.ioBuffer
-	//h.ioBuffer = nil
-	//size, err := ioBuffer.Seek(0, io.SeekEnd)
-	//if err != nil {
-	//	return fmt.Errorf("error seeking to end of buffer: %w", err)
-	//}
-	//_, _ = ioBuffer.Seek(0, io.SeekStart)
-	//
-	//filepath := fmt.Sprintf("%s.%s", h.path, h.extension)
-	//file, err := os.OpenFile(filepath, os.O_CREATE|os.O_RDWR, 0666)
-	//if err != nil {
-	//	return fmt.Errorf("error opening file: %w", err)
-	//}
-	//defer file.Close()
-	//if _, err := io.Copy(file, ioBuffer); err != nil {
-	//	return fmt.Errorf("error copying to file: %w", err)
-	//}
-	//log.Logger.Info("file session is finished",
-	//	zap.String("filepath", filepath),
-	//	zap.Int("size", int(size)))
 	return nil
 }
 
 func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*OnTrackContext, error) {
+	log.Logger.Info("hls Handler on track", zap.String("codec", track.GetCodec().String()))
 	index := slices.Index(h.negotiated, track)
 	stream := h.outputFormatCtx.Streams()[index]
 
@@ -205,29 +171,34 @@ func (h *Handler) OnTrack(ctx context.Context, track hubs.Track) (*OnTrackContex
 
 	return &OnTrackContext{
 		track:        track,
-		pkt:          avcodec.AvPacketAlloc(),
 		outputStream: stream,
-		writer:       writers.NewWriter(index, stream.TimeBase().Den(), track.GetCodec().CodecType(), codec.Decoder(), bitstream),
-		prevTime:     time.Now(),
+		writer:       writers.NewWriter(index, stream.TimeBase().Den(), track.GetCodec(), codec.Decoder(), bitstream),
 	}, nil
 }
 
-func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, unit units.Unit) error {
+func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, u units.Unit) error {
 	writer := trackCtx.writer
-	pkt := trackCtx.pkt
-	setPkt := writer.WriteVideoPkt(unit, pkt)
-	if setPkt == nil {
+	unit, ok := writer.BitStreamSummary(u)
+	if !ok {
 		return nil
 	}
 
+	pkt := writer.WriteVideoPkt(unit)
+
+	h.audioStart.Store(true)
+
 	h.mu.Lock()
 	now := time.Now()
+	if trackCtx.prevTime.IsZero() {
+		trackCtx.prevTime = now
+	}
 	if now.Sub(trackCtx.prevTime) >= 1*time.Second {
 		trackCtx.prevTime = now
 
 		buf := avformat.AVIOCloseDynBuf(h.outputFormatCtx.Pb())
-		diff := setPkt.PTS() - trackCtx.prevPTS
-		trackCtx.prevPTS = setPkt.PTS()
+
+		diff := pkt.PTS() - trackCtx.prevPTS
+		trackCtx.prevPTS = pkt.PTS()
 		fDuration := float64(diff) / float64(trackCtx.outputStream.TimeBase().Den())
 		h.endpoint.AppendMedia(buf, h.index, fDuration)
 		h.index++
@@ -237,7 +208,7 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, unit un
 	}
 
 	if h.outputFormatCtx.Pb() != nil {
-		_ = h.outputFormatCtx.AvInterleavedWriteFrame(setPkt)
+		_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	}
 
 	h.mu.Unlock()
@@ -246,16 +217,16 @@ func (h *Handler) OnVideo(ctx context.Context, trackCtx *OnTrackContext, unit un
 }
 
 func (h *Handler) OnAudio(ctx context.Context, trackCtx *OnTrackContext, unit units.Unit) error {
-	writer := trackCtx.writer
-	pkt := trackCtx.pkt
-	setPkt := writer.WriteAudioPkt(unit, pkt)
-	if setPkt == nil {
+	if !h.audioStart.Load() {
 		return nil
 	}
 
+	writer := trackCtx.writer
+	pkt := writer.WriteAudioPkt(unit)
+
 	h.mu.Lock()
 	if h.outputFormatCtx.Pb() != nil {
-		_ = h.outputFormatCtx.AvInterleavedWriteFrame(setPkt)
+		_ = h.outputFormatCtx.AvInterleavedWriteFrame(pkt)
 	}
 	h.mu.Unlock()
 	pkt.AvPacketUnref()

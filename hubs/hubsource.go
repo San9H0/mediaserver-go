@@ -151,7 +151,8 @@ func (t *HubSource) AudioCodec() (codecs.AudioCodec, error) {
 func (t *HubSource) Write(unit units.Unit) {
 	var us []units.Unit
 	if t.transcoder != nil {
-		us = t.transcoder.Transcode(unit)
+		us = []units.Unit{unit}
+		//us = t.transcoder.Transcode(unit)
 	} else {
 		us = []units.Unit{unit}
 	}

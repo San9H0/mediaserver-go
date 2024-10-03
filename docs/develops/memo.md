@@ -99,3 +99,12 @@ RGB 그대로 사용.
 필터링 사용. (이전 픽셀과의 차이를 사용하여 압축, 주파수가 적을수록 압축률이 크다)
 deflate 알고리즘으로 압축 (LZ77 과 Huffman Coding) 을 함께 적용.
 LZ77 반복된 문자부분을
+
+
+### av1
+https://aomediacodec.github.io/av1-isobmff/
+### vp8
+https://datatracker.ietf.org/doc/rfc6386/
+
+
+bframes=0

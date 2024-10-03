@@ -6,6 +6,8 @@ go 1.22.5
 
 //replace github.com/yutopp/go-rtmp => ../go-rtmp
 
+replace github.com/bluenviron/mediacommon => ../mediacommon
+
 require (
 	github.com/bluenviron/gohlslib v1.4.0
 	github.com/bluenviron/mediacommon v1.12.3

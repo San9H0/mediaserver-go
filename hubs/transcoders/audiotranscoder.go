@@ -46,21 +46,21 @@ func (t *AudioTranscoder) Target() codecs.Codec {
 }
 
 func (t *AudioTranscoder) Close() {
-	if t.decoderCtx != nil {
-		avcodec.AvCodecFreeContext(&t.decoderCtx)
-	}
-	if t.encoderCtx != nil {
-		avcodec.AvCodecFreeContext(&t.encoderCtx)
-	}
-	if t.swrCtx != nil {
-		swresample.SwrFree(t.swrCtx)
-	}
-	if t.audioFifo != nil {
-		avutil.AvAudioFifoFree(t.audioFifo)
-	}
-	if t.reuseBuffer != nil {
-		avutil.AvFreep(t.reuseBuffer)
-	}
+	//if t.decoderCtx != nil {
+	//	avcodec.AvCodecFreeContext(&t.decoderCtx)
+	//}
+	//if t.encoderCtx != nil {
+	//	avcodec.AvCodecFreeContext(&t.encoderCtx)
+	//}
+	//if t.swrCtx != nil {
+	//	swresample.SwrFree(t.swrCtx)
+	//}
+	//if t.audioFifo != nil {
+	//	avutil.AvAudioFifoFree(t.audioFifo)
+	//}
+	//if t.reuseBuffer != nil {
+	//	avutil.AvFreep(t.reuseBuffer)
+	//}
 }
 
 func (t *AudioTranscoder) Setup() error {
@@ -79,14 +79,14 @@ func (t *AudioTranscoder) Setup() error {
 		return errors.New("avcodec alloc context3 failed")
 	}
 
-	source.SetCodecContext(decoderCtx)
+	source.SetCodecContext(decoderCtx, nil)
 	if decoderCtx.AvCodecOpen2(decoder, nil) < 0 {
 		return errors.New("avcodec open failed")
 	}
 
 	encoder := avcodec.AvcodecFindEncoder(target.AVCodecID())
 	encoderCtx := encoder.AvCodecAllocContext3()
-	target.SetCodecContext(encoderCtx)
+	target.SetCodecContext(encoderCtx, nil)
 	if encoderCtx.AvCodecOpen2(encoder, nil) < 0 {
 		return errors.New("avcodec open failed")
 	}
@@ -117,6 +117,9 @@ func (t *AudioTranscoder) Setup() error {
 }
 
 func (t *AudioTranscoder) Transcode(unit units.Unit) []units.Unit {
+	// TODO
+
+	var result []units.Unit
 	pkt := avcodec.AvPacketAlloc()
 	pkt.SetPTS(unit.PTS)
 	pkt.SetDTS(unit.DTS)
@@ -148,7 +151,6 @@ func (t *AudioTranscoder) Transcode(unit units.Unit) []units.Unit {
 		return nil
 	}
 
-	var result []units.Unit
 	for t.audioFifo.AvAudioFifoSize() >= t.encoderCtx.FrameSize() {
 		opusFrame := avutil.AvFrameAlloc()
 		opusFrame.SetNbSamples(t.encoderCtx.FrameSize())
@@ -178,8 +180,9 @@ func (t *AudioTranscoder) Transcode(unit units.Unit) []units.Unit {
 			PTS:      recvPkt.PTS(),
 			DTS:      recvPkt.DTS(),
 			Duration: recvPkt.Duration(),
-			TimeBase: t.encoderCtx.SampleRate(),
+			TimeBase: unit.TimeBase,
 		})
 	}
+
 	return result
 }

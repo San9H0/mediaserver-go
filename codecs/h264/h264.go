@@ -7,7 +7,6 @@ import (
 	"github.com/pion/sdp/v3"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/parsers/format"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
@@ -24,9 +23,6 @@ var (
 type H264 struct {
 	Base
 	config *Config
-
-	// transcoding info
-	transcodingInfo *codecs.VideoTranscodeInfo
 }
 
 func NewH264(config *Config) codecs.Codec {
@@ -38,6 +34,10 @@ func NewH264(config *Config) codecs.Codec {
 
 func (h *H264) String() string {
 	return fmt.Sprintf("%s. width:%d,height:%d", h.MimeType(), h.Width(), h.Height())
+}
+
+func (h *H264) HLSMIME() string {
+	return fmt.Sprintf("avc1.%02X%02X%02x", h.profileIDC(), h.constraintFlag(), h.level())
 }
 
 func (h *H264) GetBase() codecs.Base {
@@ -116,26 +116,26 @@ func (h *H264) profile() string {
 	return fmt.Sprintf("%02x%02x%02x", h.config.profileID, h.config.profileComp, h.config.levelID)
 }
 
-func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
+	fmt.Println("[TESTDEBUG] h264 setTimebase:", h.FPS())
 	codecCtx.SetCodecID(h.AVCodecID())
 	codecCtx.SetCodecType(h.AVMediaType())
 	codecCtx.SetWidth(h.Width())
 	codecCtx.SetHeight(h.Height())
-	codecCtx.SetTimeBase(avutil.NewRational(1, int(h.FPS())))
+	codecCtx.SetTimeBase(avutil.NewRational(1, 30))
 	codecCtx.SetPixelFormat(avutil.PixelFormat(h.PixelFormat()))
 	codecCtx.SetProfile(int(h.profileIDC()))
 	codecCtx.SetLevel(int(h.level()))
 	codecCtx.SetExtraData(h.ExtraData())
 
-	if h.transcodingInfo != nil {
-		fmt.Println("[TESTDEBUG] h.transcodingInfo.GOPSize:", h.transcodingInfo.GOPSize, ", fps:", h.transcodingInfo.FPS, ", maxbframe:", h.transcodingInfo.MaxBFrameSize)
-		codecCtx.SetGOP(h.transcodingInfo.GOPSize)
-		codecCtx.SetFrameRate(avutil.NewRational(h.transcodingInfo.FPS, 1))
-		codecCtx.SetMaxBFrames(h.transcodingInfo.MaxBFrameSize)
+	if transcodeInfo != nil {
+		fmt.Println("[TESTDEBUG] h.transcodingInfo.GOPSize:", transcodeInfo.GOPSize, ", fps:", transcodeInfo.FPS, ", maxbframe:", transcodeInfo.MaxBFrameSize)
+		codecCtx.SetGOP(transcodeInfo.GOPSize)
+		codecCtx.SetFrameRate(avutil.NewRational(transcodeInfo.FPS, 1))
+		codecCtx.SetMaxBFrames(transcodeInfo.MaxBFrameSize)
 		avutil.AvOptSet(codecCtx.PrivData(), "ref", "1", 0)
 		avutil.AvOptSet(codecCtx.PrivData(), "rc-lookahead", "0", 0)
 		avutil.AvOptSet(codecCtx.PrivData(), "mbtree", "0", 0)
-
 	}
 }
 
@@ -196,18 +196,10 @@ func (h *H264) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, e
 //	profile, constraintFlags, level)
 //}
 
-func (h *H264) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
-	return bitstreamfilter.NewBitStream(h.CodecType())
-}
-
 func (h *H264) BitStreamFilter2(data []byte) [][]byte {
 	return format.GetAUFromAVC(data)
 }
 
 func (h *H264) BitStreamFilter(data []byte) [][]byte {
 	return format.GetAUFromAVC(data)
-}
-
-func (h *H264) SetVideoTranscodeInfo(info codecs.VideoTranscodeInfo) {
-	h.transcodingInfo = &info
 }

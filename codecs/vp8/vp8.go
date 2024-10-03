@@ -5,7 +5,6 @@ import (
 	"github.com/pion/sdp/v3"
 	pion "github.com/pion/webrtc/v3"
 	"mediaserver-go/codecs"
-	"mediaserver-go/codecs/bitstreamfilter"
 	"mediaserver-go/hubs/engines"
 	"mediaserver-go/thirdparty/ffmpeg/avcodec"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
@@ -39,8 +38,13 @@ func (v *VP8) Equals(codec codecs.Codec) bool {
 	}
 	return true
 }
+
 func (v *VP8) String() string {
 	return v.MimeType()
+}
+
+func (v *VP8) HLSMIME() string {
+	return ""
 }
 
 func (v *VP8) GetBase() codecs.Base {
@@ -80,7 +84,7 @@ func (v *VP8) ExtraData() []byte {
 	return nil
 }
 
-func (v *VP8) SetCodecContext(codecCtx *avcodec.CodecContext) {
+func (v *VP8) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
 	codecCtx.SetCodecID(v.AVCodecID())
 	codecCtx.SetCodecType(v.AVMediaType())
 	codecCtx.SetWidth(v.Width())
@@ -88,6 +92,14 @@ func (v *VP8) SetCodecContext(codecCtx *avcodec.CodecContext) {
 	codecCtx.SetTimeBase(avutil.NewRational(1, int(v.FPS())))
 	codecCtx.SetPixelFormat(avutil.PixelFormat(v.PixelFormat()))
 	codecCtx.SetExtraData(v.ExtraData())
+	fmt.Println("[TESTDEBUG] VP8 SetCodecContext")
+	fmt.Println("[TESTDEBUG] codecCtx.CodecID():", codecCtx.CodecID())
+	fmt.Println("[TESTDEBUG] codecCtx.CodecType():", codecCtx.CodecType())
+	fmt.Println("[TESTDEBUG] codecCtx.Width():", codecCtx.Width())
+	fmt.Println("[TESTDEBUG] codecCtx.Height():", codecCtx.Height())
+	fmt.Println("[TESTDEBUG] codecCtx.TimeBase():", codecCtx.TimeBase())
+	fmt.Println("[TESTDEBUG] codecCtx.PixelFormat():", codecCtx.PixelFormat())
+	fmt.Println("[TESTDEBUG] codecCtx.ExtraData():", codecCtx.ExtraData())
 }
 
 func (v *VP8) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
@@ -123,12 +135,4 @@ func (v *VP8) RTPCodecCapability(targetPort int) (engines.RTPCodecParameters, er
 			},
 		},
 	}, nil
-}
-
-func (v *VP8) SetVideoTranscodeInfo(info codecs.VideoTranscodeInfo) {
-	return
-}
-
-func (v *VP8) GetBitStreamFilter() bitstreamfilter.BitStreamFilter {
-	return bitstreamfilter.NewBitStream(v.CodecType())
 }
