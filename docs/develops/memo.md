@@ -100,6 +100,9 @@ RGB 그대로 사용.
 deflate 알고리즘으로 압축 (LZ77 과 Huffman Coding) 을 함께 적용.
 LZ77 반복된 문자부분을
 
+### ice
+https://datatracker.ietf.org/doc/html/rfc8445#section-7.3.1.5
+
 
 ### av1
 https://aomediacodec.github.io/av1-isobmff/

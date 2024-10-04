@@ -4,39 +4,21 @@
 입력과 출력이 자유로운 미디어 스트리밍 서버
 
 ## Features
-### Ingress 스트리밍 입력 기능
-- [x] WebRTC Streaming
-- [x] RTP Streaming
-- [x] RTMP Streaming
-- [x] 파일 Streaming
+Live streams can be published to the server with:
 
-### Egress
-- [x] WebRTC View
-- [x] RTP View
-- [x] HLS 
-- [x] LL-HLS
-- [x] File Save
+| protocol         | variants  |video codecs|audio codecs|
+|------------------|-----------|------------|------------|
+| WebRTC Stream    | WHIP      | VP8, H264, AV1 | Opus |
+| RTMP Stream      | RTMP      | H264 | AAC |
+ | File Stream | mp4, webm | H264, VP8, AV1 | AAC, Opus |
 
-### Codecs
-- [x] H264
-- [x] VP8
-- [x] AV1
-- [x] Opus
-- [x] AAC
+And can be read from the server with:
 
+| protocol      | variants  | video codecs   | audio codecs |
+|---------------|-----------|----------------|--------------|
+| WebRTC Client | WHEP      | VP8, H264, AV1 | Opus         |
+| LL-HLS        | LL-HLS    | H264      | Opus, AAC    |
+| Record File   | mp4, webm | H264, VP8, AV1 | AAC, Opus    |
 
-### Checklist
-- WebRTC Streaming
-- [x] VP8
-- [x] H264
-- [x] AV1
-- [x] Opus
-
-- WebRTC View
-- [x] VP8
-- [x] H264
-- [x] AV1
-- [x] Opus
-
-### Run
-CGO
+## TODO
+Adaptive Bitrate, Simulcast, SVC, RTMP AV1

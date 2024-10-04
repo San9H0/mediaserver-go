@@ -87,6 +87,15 @@
 <script>
     const configuration = {
         sdpSemantics: 'unified-plan',
+        iceServers : [
+            {
+                urls: 'stun:stun.l.google.com:19302'
+                // urls: 'turn:211.42.37.139:13478', // COTURN TURN 서버
+                // urls: 'turn:127.0.0.1:3478', // COTURN TURN 서버
+                // username: 'username1',
+                // credential: 'password1'
+            }
+        ]
     };
     // JavaScript를 사용하여 값 설정 가능
     const streamKeyInput = document.getElementById('streamKey');
@@ -181,7 +190,11 @@
         // })
         // pubAudioTransceiver.setCodecPreferences(opusFilteredCodec)
 
-        pubPC.addEventListener('icecandidate',async event => {
+        pubPC.addEventListener('icecandidate', event => {
+            if (event.candidate == null) {
+                return
+            }
+            console.log('candidate:', event.candidate.candidate);
         });
         pubPC.addEventListener('iceconnectionstatechange', e => {
         });
