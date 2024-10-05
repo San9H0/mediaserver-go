@@ -90,6 +90,9 @@ func Initialize(
 	imageHandler := NewImagesHandler(imageServer)
 	imageHandler.Register(e)
 
+	wsHandler := NewWebSocketHandler()
+	e.GET("/v1/wss", wsHandler.Handle)
+
 	return e
 }
 

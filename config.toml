@@ -1,5 +1,8 @@
 [General]
-Port = 8080
+Port = 9090
+
+[Https]
+Port = 9091
 
 [Log]
 Level = "debug"

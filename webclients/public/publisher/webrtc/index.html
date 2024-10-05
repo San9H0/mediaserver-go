@@ -6,7 +6,6 @@
 </head>
 <body>
 
-<script src="../../scripts/webrtc/sdp.js"></script>
 <h1>WHIP Client</h1>
 
 <video id="pubVideo" controls></video>
@@ -49,9 +48,11 @@
         }
         const serverHost = window.location.hostname;
         const serverPort = window.location.port;
-
+        const protocol = window.location.protocol;  // 'http:' or 'https:'
+        const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
+        console.log("protocol:", protocol, ", scheme:", scheme)
         if (publish) {
-            const response = await fetch(`http://${serverHost}:${serverPort}/v1/whip`, {
+            const response = await fetch(`${protocol}//${serverHost}:${serverPort}/v1/whip`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/sdp',
@@ -67,7 +68,7 @@
             return await response.text()
         }
 
-        const response = await fetch(`http://${serverHost}:${serverPort}/v1/whep`, {
+        const response = await fetch(`${protocol}//${serverHost}:${serverPort}/v1/whep`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/sdp',
@@ -131,16 +132,18 @@
 
     async function startPub() {
         pubPC = new RTCPeerConnection(configuration);
-        pubAudioTransceiver = pubPC.addTransceiver(localStream.getAudioTracks()[0], {
+        pubAudioTransceiver = pubPC.addTransceiver('audio', {
             direction : 'sendonly',
             sendEncodings: audioEncodings,
             stream: [localStream],
         })
-        pubVideoTransceiver = pubPC.addTransceiver(localStream.getVideoTracks()[0], {
+        pubVideoTransceiver = pubPC.addTransceiver('video', {
             direction : 'sendonly',
             sendEncodings: singleVideoEncodings,
             stream: [localStream],
         })
+        pubPC.addTrack(localStream.getAudioTracks()[0], localStream)
+        pubPC.addTrack(localStream.getVideoTracks()[0], localStream)
 
         // if (true) { // simulcast 를 체크하지 않았을때?
         let param = pubVideoTransceiver.sender.getParameters()

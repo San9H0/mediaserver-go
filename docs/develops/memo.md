@@ -111,3 +111,6 @@ https://datatracker.ietf.org/doc/rfc6386/
 
 
 bframes=0
+
+### domain
+hellosan9h0.duckdns.org

@@ -78,6 +78,10 @@ func main() {
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
+		port := viper.GetInt("https.port")
+		return e.StartTLS(fmt.Sprintf(":%d", port), "./tls/certificate.crt", "./tls/private.key")
+	})
+	g.Go(func() error {
 		port := viper.GetInt("general.port")
 		return e.Start(fmt.Sprintf("0.0.0.0:%d", port))
 	})

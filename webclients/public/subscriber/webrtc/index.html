@@ -6,7 +6,6 @@
 </head>
 <body>
 
-<script src="../../scripts/webrtc/sdp.js"></script>
 <h1>WHEP Client</h1>
 
 <video id="subVideo"></video>
@@ -30,9 +29,10 @@
         }
         const serverHost = window.location.hostname;
         const serverPort = window.location.port;
-
+        const protocol = window.location.protocol;  // 'http:' or 'https:'
+        const scheme = protocol === 'https:' ? 'wss:' : 'ws:';
         if (publish) {
-            const response = await fetch(`http://${serverHost}:${serverPort}/v1/whip`, {
+            const response = await fetch(`${protocol}//${serverHost}:${serverPort}/v1/whip`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/sdp',
@@ -48,7 +48,7 @@
             return await response.text()
         }
 
-        const response = await fetch(`http://${serverHost}:${serverPort}/v1/whep`, {
+        const response = await fetch(`${protocol}//${serverHost}:${serverPort}/v1/whep`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/sdp',

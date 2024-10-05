@@ -2,6 +2,7 @@ package rtpinbounder
 
 import (
 	"context"
+	"fmt"
 	"github.com/pion/rtp"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
@@ -54,6 +55,8 @@ func (i *Inbounder) Run(ctx context.Context, hubTrack *hubs.HubSource, stats *St
 			log.Logger.Error("rtp failed to unmarshal", zap.Error(err))
 			continue
 		}
+
+		fmt.Println("[TESTDEBUG] read RTP packet.. sn:", rtpPacket.SequenceNumber, ", ts:", rtpPacket.Timestamp, ", payload:", len(rtpPacket.Payload))
 
 		if startTS == 0 {
 			startTS = rtpPacket.Timestamp
