@@ -39,6 +39,16 @@
     const singleVideoEncodings = [
         {maxBitrate: 1024 * 1024 * 1024}
     ];
+    const maxBitrates = {
+        high: 1024 * 1024,
+        medium: 512 * 1024,
+        low: 256 * 1024
+    };
+    const simulcastVideoEncodings = [
+        { rid: 'h', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.high },
+        { rid: 'm', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.medium, scaleResolutionDownBy: 2 },
+        { rid: 'l', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.low, scaleResolutionDownBy: 4 }
+    ]
 </script>
 
 <script>
@@ -139,7 +149,7 @@
         })
         pubVideoTransceiver = pubPC.addTransceiver('video', {
             direction : 'sendonly',
-            sendEncodings: singleVideoEncodings,
+            sendEncodings: simulcastVideoEncodings,
             stream: [localStream],
         })
         pubPC.addTrack(localStream.getAudioTracks()[0], localStream)
@@ -185,13 +195,13 @@
         if (selectedCodecs.length > 0) {
             pubVideoTransceiver.setCodecPreferences(selectedCodecs)
         }
-        //
+        const audioCodec = audioCodecSelector.value
 
-        // const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
-        // const opusFilteredCodec = audioCodecs.filter(codec => {
-        //     return codec.mimeType.toLowerCase() === 'audio/opus'
-        // })
-        // pubAudioTransceiver.setCodecPreferences(opusFilteredCodec)
+        const audioCodecs = RTCRtpSender.getCapabilities('audio').codecs
+        const opusFilteredCodec = audioCodecs.filter(codec => {
+            return codec.mimeType.toLowerCase() === `audio/${audioCodec}`
+        })
+        pubAudioTransceiver.setCodecPreferences(opusFilteredCodec)
 
         pubPC.addEventListener('icecandidate', event => {
             if (event.candidate == null) {
