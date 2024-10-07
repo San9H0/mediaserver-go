@@ -4,6 +4,7 @@ import (
 	"github.com/pion/rtp"
 	"mediaserver-go/codecs"
 	"mediaserver-go/thirdparty/ffmpeg/avutil"
+	"mediaserver-go/utils/units"
 	"sync/atomic"
 )
 
@@ -18,7 +19,7 @@ func NewRTPParser(cb func(codec codecs.Codec)) *RTPParser {
 	}
 }
 
-func (r *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
+func (r *RTPParser) Parse(rtpPacket *rtp.Packet) ([][]byte, units.FrameInfo) {
 	if !r.once.Swap(true) {
 		r.cb(NewOpus(NewConfig(Parameters{
 			Channels:     2,
@@ -26,5 +27,5 @@ func (r *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 			SampleFormat: int(avutil.AV_SAMPLE_FMT_FLT),
 		})))
 	}
-	return [][]byte{rtpPacket.Payload}
+	return [][]byte{rtpPacket.Payload}, units.FrameInfo{}
 }

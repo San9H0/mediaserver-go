@@ -31,16 +31,14 @@ func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.
 		return RTPSession{}, err
 	}
 
-	typ, err := factory.NewBase(mimeType)
+	base, err := factory.NewBase(mimeType)
 	if err != nil {
 		return RTPSession{}, err
 	}
 
-	var hubSource *hubs.HubSource
+	hubSource := hubs.NewHubSource(base, "")
 	timebase := 0
 
-	hubSource = hubs.NewHubSource(typ)
-	stream.AddSource(hubSource)
 	switch types.CodecTypeFromMimeType(mimeType) {
 	case types.CodecTypeH264:
 		timebase = 90000
@@ -52,6 +50,8 @@ func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.
 		return RTPSession{}, fmt.Errorf("unsupported codec type: %v", mimeType)
 	}
 
+	stream.AddSource(hubSource)
+
 	return RTPSession{
 		pt:        pt,
 		conn:      conn,
@@ -59,7 +59,7 @@ func NewRTPSession(ip string, port int, pt uint8, mimeType string, stream *hubs.
 		hubSource: hubSource,
 		timebase:  timebase,
 
-		codecType: typ,
+		codecType: base,
 	}, nil
 }
 

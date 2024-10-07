@@ -51,30 +51,47 @@ var LevelIdxMap = map[uint8]string{
 |f|t y p e|f|s|-|
 +-+-+-+-+-+-+-+-+
 */
-// 5.3.2. OBU header syntax
-func ParseOBUHeaderSyntax(data []byte) error {
-	forbiddenBit := int((data[0] & 0x80) >> 7)
-	if forbiddenBit != 0 {
-		return fmt.Errorf("forbidden bit is set")
-	}
 
-	obuType := OBUType(data[0]&0x78) >> 3
-	obuExtensionFlag := int((data[0] & 0x04) >> 2)
-	obuHasSizeField := int((data[0] & 0x02) >> 1)
-	_ = obuHasSizeField
+type OBUHeader struct {
+	OBUType          OBUType
+	HasExtensionFlag bool
+	HasSize          bool
+	OBUSize          uint
+
+	// if extensionFlag is true
+	TemporalID uint8
+	SpatialID  uint8
+}
+
+func (o *OBUHeader) Unmarshal(data []byte) error {
+	pos := 0
+	_ = readBits(data, &pos, 1)
+	obuType := readBits(data, &pos, 4)
+	obuExtensionFlag := readBits(data, &pos, 1)
+	obuHasSizeField := readBits(data, &pos, 1)
+	_ = readBits(data, &pos, 1)
 
 	if obuExtensionFlag == 1 {
-		// TODO: extension flag is not supported yet
+		o.TemporalID = uint8(readBits(data, &pos, 3))
+		o.SpatialID = uint8(readBits(data, &pos, 2))
+		_ = readBits(data, &pos, 3)
 	}
 
-	if obuType == OBUSequenceHeader {
-		//var header av1.SequenceHeader
-		//if err := header.Unmarshal(data); err != nil {
-		//	log.Logger.Error("failed to unmarshal sequence header", zap.Error(err))
-		//}
-		//fmt.Println("[TESTDEBUG] width:", header.Width(), "height:", header.Height())
+	obuSize := uint(len(data) - 1 - obuExtensionFlag)
+	if obuHasSizeField == 1 {
+		offset := pos / 8
+		var read int
+		var err error
+		obuSize, read, err = LEB128Unmarshal(data[offset:])
+		if err != nil {
+			return err
+		}
+		pos += read * 8
 	}
-
+	o.OBUType = OBUType(obuType)
+	o.HasExtensionFlag = obuExtensionFlag == 1
+	o.HasSize = obuHasSizeField == 1
+	o.OBUSize = obuSize
 	return nil
 }
 
@@ -173,4 +190,31 @@ func ParseExtraData(extradata []byte) (seqHeaderData []byte) {
 	//return data, nil
 
 	//return nil, nil
+}
+
+func readBits(data []byte, pos *int, bits int) int {
+	value := 0
+	bitOffset := *pos % 8
+	byteOffset := *pos / 8
+	bitsRead := 0
+
+	for bitsRead < bits {
+		remainingBitsInByte := 8 - bitOffset
+		bitsToRead := remainingBitsInByte
+		if bits-bitsRead < remainingBitsInByte {
+			bitsToRead = bits - bitsRead
+		}
+
+		mask := (1 << bitsToRead) - 1
+		bitsValue := (int(data[byteOffset]) >> (remainingBitsInByte - bitsToRead)) & mask
+
+		value = (value << bitsToRead) | bitsValue
+		bitsRead += bitsToRead
+		*pos += bitsToRead
+
+		bitOffset = 0
+		byteOffset++
+	}
+
+	return value
 }

@@ -54,16 +54,17 @@ func NewFileSession(path string, mediaTypes []types.MediaType, live bool, hubStr
 		if !slices.Contains(mediaTypes, mediaType) {
 			continue
 		}
-		codecBase, err := factory.NewBase(fmt.Sprintf("%s/%s", mediaType, codecType))
+		base, err := factory.NewBase(fmt.Sprintf("%s/%s", mediaType, codecType))
 		if err != nil {
 			return FileSession{}, err
 		}
-		codec, err := codecBase.CodecFromAVCodecParameters(stream.CodecParameters())
+		codec, err := base.CodecFromAVCodecParameters(stream.CodecParameters())
 		if err != nil {
 			return FileSession{}, err
 		}
 
-		source := hubs.NewHubSource(codecBase)
+		source := hubs.NewHubSource(base, "")
+
 		hubStream.AddSource(source)
 		source.SetCodec(codec)
 		trackCtx[i] = &trackContext{

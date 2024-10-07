@@ -2,7 +2,6 @@ package rtpinbounder
 
 import (
 	"context"
-	"fmt"
 	"github.com/pion/rtp"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
@@ -56,8 +55,6 @@ func (i *Inbounder) Run(ctx context.Context, hubTrack *hubs.HubSource, stats *St
 			continue
 		}
 
-		fmt.Println("[TESTDEBUG] read RTP packet.. sn:", rtpPacket.SequenceNumber, ", ts:", rtpPacket.Timestamp, ", payload:", len(rtpPacket.Payload))
-
 		if startTS == 0 {
 			startTS = rtpPacket.Timestamp
 		}
@@ -73,15 +70,16 @@ func (i *Inbounder) Run(ctx context.Context, hubTrack *hubs.HubSource, stats *St
 
 		stats.CalcRTPStats(rtpPacket, n)
 
-		payloads := i.parser.Parse(rtpPacket)
+		payloads, frameInfo := i.parser.Parse(rtpPacket)
 		for index, payload := range payloads {
 			hubTrack.Write(units.Unit{
-				Payload:  payload,
-				PTS:      int64(pts),
-				DTS:      int64(pts),
-				Duration: int64(duration),
-				TimeBase: i.timebase,
-				Marker:   index == len(payloads)-1,
+				Payload:   payload,
+				PTS:       int64(pts),
+				DTS:       int64(pts),
+				Duration:  int64(duration),
+				TimeBase:  i.timebase,
+				Marker:    index == len(payloads)-1,
+				FrameInfo: frameInfo,
 			})
 		}
 

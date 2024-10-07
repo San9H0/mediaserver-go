@@ -17,19 +17,15 @@ type Handler struct {
 	updateTime time.Time
 }
 
-func NewHandler() *Handler {
+func NewHandler(id int, use bool) *Handler {
 	return &Handler{
-		use:            false,
+		id:             id,
+		use:            use,
 		targetMin:      60,
 		payload:        make([]byte, 3),
 		updateInterval: 300 * time.Millisecond,
 		updateTime:     time.Now(),
 	}
-}
-
-func (p *Handler) SetUse(id int, use bool) {
-	p.id = id
-	p.use = use
 }
 
 func (p *Handler) SetTargetMin(min int) {

@@ -9,6 +9,8 @@ type Stats struct {
 	lastTS     atomic.Uint32
 	sendCount  atomic.Uint32
 	sendLength atomic.Uint32
+
+	nackCount atomic.Uint32
 }
 
 func NewStats() *Stats {

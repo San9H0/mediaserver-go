@@ -8,7 +8,7 @@
 
 <h1>WHEP Client</h1>
 
-<video id="subVideo"></video>
+<video id="subVideo" controls></video>
 
 <br><br>
 
@@ -17,6 +17,19 @@
 
 <div class="box">
     <button id="start">Start</button>
+</div>
+
+<div id="sub-video-size">
+    NO VIDEO
+</div>
+<div id="sub-video-stat">
+    - kbs @ - fps
+</div>
+<div id="sub-video-delay">
+    No Video Delay
+</div>
+<div id="sub-audio-delay">
+    No Audio Delay
 </div>
 
 <script>
@@ -78,6 +91,10 @@
     const subVideo = document.getElementById('subVideo');
 
     const startBtn = document.getElementById('start');
+    const textSubVideoSize = document.getElementById('sub-video-size');
+    const textSubVideoStat = document.getElementById('sub-video-stat');
+    const textSubVideoDelay = document.getElementById('sub-video-delay');
+    const textSubAudioDelay = document.getElementById('sub-audio-delay');
 
     async function startSub() {
         subPC = new RTCPeerConnection(configuration);
@@ -99,6 +116,12 @@
                 await subVideo.play()
                 console.log('subPC received remote stream');
             }
+
+            if (e.track.kind === "video") {
+                updateSubVideoStat(subPC, e.track)
+            } else if (e.track.kind === "audio") {
+                updateSubAudioStat(subPC, e.track)
+            }
         };
 
         const offer = await subPC.createOffer()
@@ -118,9 +141,110 @@
         await startSub();
     }
     startBtn.addEventListener('click', start);
+</script>
+
+<script>
+    function updateSubVideoStat (pc, track) {
+        let bufferPrev;
+        let bytesPrev;
+        let timestampPrev;
+        let emittedPrev;
+        return window.setInterval(() => {
+            const stats = pc.getStats(track);
+            if (!stats) {
+                return;
+            }
+            // if (false) { // print audio level
+            //     pc.getReceivers().forEach(receiver => {
+            //         if (receiver.track.kind !== 'audio') {
+            //             return;
+            //         }
+            //         receiver.getSynchronizationSources().forEach((source) => {
+            //             if (!source) {
+            //                 return
+            //             }
+            //             console.log('audioLevel:', source.audioLevel);
+            //         });
+            //     });
+            // }
+
+            stats.then((results) =>
+                results.forEach((report) => {
+                    if (report.type !== "inbound-rtp" || report.mediaType !== "video") {
+                        return
+                    }
+                    let bitrate = 0;
+                    let delay = 0;
+                    const now = report.timestamp;
+                    const bytes = report.bytesReceived
+                    if (timestampPrev) {
+                        bitrate = (8 * (bytes - bytesPrev)) / (now - timestampPrev)
+                        bitrate = Math.floor(bitrate)
+                        delay = ((report.jitterBufferDelay - bufferPrev) / (report.jitterBufferEmittedCount - emittedPrev)) * 1000;
+                        delay = Math.floor(delay)
+                    }
+
+                    bytesPrev = bytes;
+                    timestampPrev = now;
+                    bufferPrev = report.jitterBufferDelay;
+                    emittedPrev = report.jitterBufferEmittedCount;
+
+                    if (bitrate > 0) {
+                        const fps = report.framesPerSecond ? report.framesPerSecond : 0;
+                        textSubVideoStat.innerText = `${bitrate} kbps @ ${fps} fps`;
+                    } else {
+                        textSubVideoStat.innerText = `NO MEDIA`;
+                    }
+
+                    if (delay > 0) {
+                        textSubVideoDelay.innerText = `Video Delay: ${delay} ms`;
+                    } else {
+                        textSubVideoDelay.innerText = `No Video Delay`;
+                    }
+                    const width = subVideo.videoWidth || 0;
+                    const height = subVideo.videoHeight || 0;
+                    if (width > 0 && height > 0) {
+                        textSubVideoSize.innerText = `${width}x${height}`;
+                    } else {
+                        textSubVideoSize.innerText = `NO VIDEO`;
+                    }
+                })
+            )
+        }, 1000)
 
 
 
+    }
+    function updateSubAudioStat (pc, track) {
+        let bufferPrev;
+        let emittedPrev;
+        return window.setInterval(() => {
+            const stat = pc.getStats()
+            if (!stat) {
+                return;
+            }
+            stat.then(results => {
+                results.forEach(report => {
+                    if (report.type !== "inbound-rtp" || report.mediaType !== "audio") {
+                        return
+                    }
+                    let delay = 0;
+                    if (emittedPrev) {
+                        delay = ((report.jitterBufferDelay - bufferPrev) / (report.jitterBufferEmittedCount - emittedPrev)) * 1000;
+                        delay = Math.floor(delay)
+                    }
+                    bufferPrev = report.jitterBufferDelay;
+                    emittedPrev = report.jitterBufferEmittedCount;
+                    if (delay > 0) {
+                        textSubAudioDelay.innerText = `Audio Delay: ${delay} ms`;
+                    } else {
+                        textSubAudioDelay.innerText = `No Audio Delay`;
+                    }
+
+                })
+            })
+        }, 1000)
+    }
 </script>
 </body>
 </html>

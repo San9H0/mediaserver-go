@@ -6,18 +6,20 @@ import (
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
 	"mediaserver-go/utils/log"
+	"mediaserver-go/utils/units"
 )
 
-type RTTPParser struct {
+type RTPParser struct {
 	fragments [][]byte
 
+	fragmentFlag       int
 	sequenceHeaderData []byte
 
 	cb func(codec codecs.Codec)
 }
 
-func NewRTPParser(cb func(codec codecs.Codec)) *RTTPParser {
-	return &RTTPParser{
+func NewRTPParser(cb func(codec codecs.Codec)) *RTPParser {
+	return &RTPParser{
 		cb: cb,
 	}
 }
@@ -39,7 +41,7 @@ RTP Payload는 집합(Aggregation) 또는 분할(fragmentation) 이 될 수있�
 첫번째 또는 마지막 OBU 요소가 OBU의 분할된 조각일 수 있다.
 */
 // Parse RTP Packet.
-func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
+func (a *RTPParser) Parse(rtpPacket *rtp.Packet) ([][]byte, units.FrameInfo) {
 	rtpPayload := rtpPacket.Payload
 
 	Z := int(rtpPayload[0] & 0x80 >> 7)
@@ -49,6 +51,9 @@ func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 
 	if Z == 0 {
 		a.fragments = nil
+	}
+	if N == 1 {
+		a.fragmentFlag = 1
 	}
 
 	index := 0
@@ -65,7 +70,7 @@ func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 			length, read, err = LEB128Unmarshal(rtpPayload[offset:])
 			if err != nil {
 				log.Logger.Error("av1 unmarshal err", zap.Error(err))
-				return nil
+				return nil, units.FrameInfo{}
 			}
 			offset += read
 		} else {
@@ -74,7 +79,9 @@ func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 
 		data := rtpPayload[offset : offset+int(length)]
 		if index == 0 && Z == 1 { // 이전요소가 이어짐.
-			a.fragments[len(a.fragments)-1] = append(a.fragments[len(a.fragments)-1], data...)
+			if len(a.fragments) > 0 { // 이전 요소가 없음는경우 포함시키지 않음.
+				a.fragments[len(a.fragments)-1] = append(a.fragments[len(a.fragments)-1], data...)
+			}
 		} else {
 			if N == 1 && index == 0 && !bytes.Equal(a.sequenceHeaderData, data) {
 				config := &Config{}
@@ -98,9 +105,14 @@ func (a *RTTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 	}
 
 	if Y == 1 {
-		return nil
+		return nil, units.FrameInfo{}
 	}
-	return a.fragments
+
+	fragmentFlag := a.fragmentFlag
+	a.fragmentFlag = 0
+	return a.fragments, units.FrameInfo{
+		Flag: fragmentFlag,
+	}
 }
 
 /*

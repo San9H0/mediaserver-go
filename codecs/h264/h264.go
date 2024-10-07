@@ -117,7 +117,6 @@ func (h *H264) profile() string {
 }
 
 func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *codecs.VideoTranscodeInfo) {
-	fmt.Println("[TESTDEBUG] h264 setTimebase:", h.FPS())
 	codecCtx.SetCodecID(h.AVCodecID())
 	codecCtx.SetCodecType(h.AVMediaType())
 	codecCtx.SetWidth(h.Width())
@@ -129,7 +128,6 @@ func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *co
 	codecCtx.SetExtraData(h.ExtraData())
 
 	if transcodeInfo != nil {
-		fmt.Println("[TESTDEBUG] h.transcodingInfo.GOPSize:", transcodeInfo.GOPSize, ", fps:", transcodeInfo.FPS, ", maxbframe:", transcodeInfo.MaxBFrameSize)
 		codecCtx.SetGOP(transcodeInfo.GOPSize)
 		codecCtx.SetFrameRate(avutil.NewRational(transcodeInfo.FPS, 1))
 		codecCtx.SetMaxBFrames(transcodeInfo.MaxBFrameSize)
@@ -140,6 +138,7 @@ func (h *H264) SetCodecContext(codecCtx *avcodec.CodecContext, transcodeInfo *co
 }
 
 func (h *H264) WebRTCCodecCapability() (pion.RTPCodecCapability, error) {
+	fmt.Println("[TESTDEBUG] H264... pion.RTPCodecCapability... SDPFmptLine:", fmt.Sprintf("level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=%s", h.profile()))
 	return pion.RTPCodecCapability{
 		MimeType:     h.MimeType(),
 		ClockRate:    h.ClockRate(),

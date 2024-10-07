@@ -131,7 +131,9 @@ func (v *Writer) BitStreamSummary(unit units.Unit) (units.Unit, bool) {
 		Duration: unit.Duration,
 		TimeBase: unit.TimeBase,
 		Marker:   unit.Marker,
-		Flag:     keyFrame,
+		FrameInfo: units.FrameInfo{
+			Flag: keyFrame,
+		},
 	}, true
 }
 
@@ -152,7 +154,7 @@ func (v *Writer) WriteVideoPkt(unit units.Unit) *avcodec.Packet {
 	pkt.SetDuration(avutil.AvRescaleQ(unit.Duration, inputTimebase, outputTimebase))
 	pkt.SetStreamIndex(v.index)
 
-	pkt.SetFlag(unit.Flag)
+	pkt.SetFlag(unit.FrameInfo.Flag)
 
 	data := v.bitstream.SetBitStream(unit.Payload)
 	pkt.SetData(data)

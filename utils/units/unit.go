@@ -5,13 +5,18 @@ import (
 )
 
 type Unit struct {
-	Payload  []byte
-	PTS      int64
-	DTS      int64
-	Duration int64
-	TimeBase int // audio: sampleRate, video: timebase
-	Marker   bool
-	Flag     int
+	Payload   []byte
+	PTS       int64
+	DTS       int64
+	Duration  int64
+	TimeBase  int // audio: sampleRate, video: timebase
+	Marker    bool
+	FrameInfo FrameInfo
+}
+
+type FrameInfo struct {
+	Flag          int
+	PayloadHeader interface{}
 }
 
 func (u Unit) String() string {

@@ -6,6 +6,8 @@ go 1.22.5
 
 //replace github.com/yutopp/go-rtmp => ../go-rtmp
 
+replace github.com/pion/webrtc/v3 => ../webrtc
+
 replace github.com/bluenviron/mediacommon => ../mediacommon
 
 require (
@@ -15,8 +17,9 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/pion/ice/v2 v2.3.34
+	github.com/pion/interceptor v0.1.36
 	github.com/pion/rtcp v1.2.14
-	github.com/pion/rtp v1.8.7
+	github.com/pion/rtp v1.8.9
 	github.com/pion/sdp/v3 v3.0.9
 	github.com/pion/webrtc/v3 v3.3.1
 	github.com/spf13/viper v1.19.0
@@ -41,13 +44,12 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
-	github.com/pion/datachannel v1.5.8 // indirect
+	github.com/pion/datachannel v1.5.9 // indirect
 	github.com/pion/dtls/v2 v2.2.12 // indirect
-	github.com/pion/interceptor v0.1.29 // indirect
 	github.com/pion/logging v0.2.2 // indirect
 	github.com/pion/mdns v0.0.12 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/sctp v1.8.19 // indirect
+	github.com/pion/sctp v1.8.33 // indirect
 	github.com/pion/srtp/v2 v2.0.20 // indirect
 	github.com/pion/stun v0.6.1 // indirect
 	github.com/pion/transport/v2 v2.2.10 // indirect
@@ -68,10 +70,10 @@ require (
 	github.com/wlynxg/anet v0.0.3 // indirect
 	github.com/yutopp/go-amf0 v0.1.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
-	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/net v0.29.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200902074654-038fdea0a05b // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

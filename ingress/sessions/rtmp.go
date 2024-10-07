@@ -127,7 +127,7 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if err != nil {
 					return err
 				}
-				h.videoSource = hubs.NewHubSource(typ)
+				h.videoSource = hubs.NewHubSource(typ, "")
 				h.stream.AddSource(h.videoSource)
 			case "audiocodecid":
 				fv := v.(float64)
@@ -139,7 +139,7 @@ func (h *RTMPSession) OnSetDataFrame(timestamp uint32, data *message.NetStreamSe
 				if err != nil {
 					return err
 				}
-				h.audioSource = hubs.NewHubSource(base)
+				h.audioSource = hubs.NewHubSource(base, "")
 				h.stream.AddSource(h.audioSource)
 			}
 		}

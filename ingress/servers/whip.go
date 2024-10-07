@@ -19,12 +19,21 @@ type WHIPServer struct {
 
 func NewWHIP(hub *hubs.Hub, se pion.SettingEngine) (WHIPServer, error) {
 	me := &pion.MediaEngine{}
-	for kind, capabilities := range engines.GetWebRTCCapabilities() {
+	for kind, capabilities := range engines.GetWebRTCCapabilities(false) {
 		for _, capability := range capabilities {
 			if err := me.RegisterCodec(capability, kind); err != nil {
 			}
 		}
 	}
+
+	for kind, capabilities := range engines.GetWHIPRTPHeaderExtensionCapabilities() {
+		for _, capa := range capabilities {
+			if err := me.RegisterHeaderExtension(capa, kind); err != nil {
+				log.Logger.Error("Failed to register header extension", zap.Error(err))
+			}
+		}
+	}
+
 	api := pion.NewAPI(pion.WithSettingEngine(se), pion.WithMediaEngine(me))
 	return WHIPServer{
 		api: api,

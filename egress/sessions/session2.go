@@ -4,19 +4,21 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"mediaserver-go/codecs"
 	"mediaserver-go/hubs"
-	"mediaserver-go/utils/units"
-
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
+	"mediaserver-go/utils/units"
 )
 
 type Handler2[T any] interface {
-	OnClosed(ctx context.Context) error
-	OnSource(ctx context.Context, source *hubs.HubSource) (T, hubs.Track, error)
+	PreferredCodec(originalCodec codecs.Codec) codecs.Codec
 
-	OnVideo(ctx context.Context, handle T, unit units.Unit) error
-	OnAudio(ctx context.Context, handle T, unit units.Unit) error
+	OnClosed(ctx context.Context) error
+	OnTrack(ctx context.Context, track hubs.Track) (T, error)
+
+	OnVideo(ctx context.Context, handle T, unit units.Unit, rid string) error
+	OnAudio(ctx context.Context, handle T, unit units.Unit, rid string) error
 }
 
 type Session2[T any] struct {
@@ -43,13 +45,26 @@ func (s *Session2[T]) Run(ctx context.Context) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	for source := range s.stream.Subscribe() {
-		handle, track, err := s.handler.OnSource(ctx, source)
+		log.Logger.Info("whep onSource",
+			zap.String("codec", string(source.CodecType())),
+			zap.String("rid", source.RID()),
+		)
+		codec, err := source.Codec()
 		if err != nil {
-			continue
+			return err
 		}
+		codec = s.handler.PreferredCodec(codec)
+		track := source.GetTrack(codec)
+
 		consumerCh := track.AddConsumer()
 		g.Go(func() error {
 			defer track.RemoveConsumer(consumerCh)
+
+			handle, err := s.handler.OnTrack(ctx, track)
+			if err != nil {
+				return err
+			}
+
 			for {
 				select {
 				case <-ctx.Done():
@@ -59,11 +74,11 @@ func (s *Session2[T]) Run(ctx context.Context) error {
 						return nil
 					}
 					if track.GetCodec().MediaType() == types.MediaTypeVideo {
-						if err := s.handler.OnVideo(ctx, handle, unit); err != nil {
+						if err := s.handler.OnVideo(ctx, handle, unit, source.RID()); err != nil {
 							return err
 						}
 					} else if track.GetCodec().MediaType() == types.MediaTypeAudio {
-						if err := s.handler.OnAudio(ctx, handle, unit); err != nil {
+						if err := s.handler.OnAudio(ctx, handle, unit, source.RID()); err != nil {
 							return err
 						}
 					}

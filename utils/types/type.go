@@ -15,8 +15,23 @@ const (
 	MediaTypeAudio   MediaType = "audio"
 )
 
+func NewMediaType(mediaType string) MediaType {
+	switch mediaType {
+	case "video":
+		return MediaTypeVideo
+	case "audio":
+		return MediaTypeAudio
+	default:
+		return UnknownMediaType
+	}
+}
+
 func (m MediaType) String() string {
 	return string(m)
+}
+
+func (m MediaType) EqualString(kind string) bool {
+	return string(m) == kind
 }
 
 func MediaTypeFromFFMPEG(mediaType avutil.MediaType) MediaType {

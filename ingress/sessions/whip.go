@@ -3,6 +3,7 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"github.com/pion/interceptor"
 	"mediaserver-go/codecs/factory"
 	"mediaserver-go/ingress/sessions/rtpinbounder"
 	"sync"
@@ -110,9 +111,13 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 			return nil
 		case onTrack := <-w.onTrack:
 			log.Logger.Info("whip ontrack",
+				zap.Uint16("pt", uint16(onTrack.remote.Codec().PayloadType)),
 				zap.String("mimetype", onTrack.remote.Codec().MimeType),
 				zap.String("kind", onTrack.remote.Kind().String()),
 				zap.Uint32("ssrc", uint32(onTrack.remote.SSRC())),
+				zap.String("streamID", onTrack.remote.StreamID()),
+				zap.String("trackID", onTrack.remote.ID()),
+				zap.String("rid", onTrack.remote.RID()),
 			)
 
 			base, err := factory.NewBase(onTrack.remote.Codec().MimeType)
@@ -122,7 +127,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 
 			stats := rtpinbounder.NewStats(onTrack.remote.Codec().ClockRate, uint32(onTrack.remote.SSRC()))
 
-			hubSource := hubs.NewHubSource(base)
+			hubSource := hubs.NewHubSource(base, onTrack.remote.RID())
 			w.stream.AddSource(hubSource)
 
 			parser, err := base.RTPParser(func(codec codecs.Codec) {
@@ -142,7 +147,7 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 				})
 			}
 			go w.sendReceiverReport(ctx, stats)
-			go w.readRTCP(onTrack.receiver, stats)
+			go w.readRTCP(onTrack.remote, onTrack.receiver, stats)
 		case connectionState := <-w.onConnectionState:
 			fmt.Println("conn:", connectionState.String())
 			switch connectionState {
@@ -154,9 +159,16 @@ func (w *WHIPSession) Run(ctx context.Context) error {
 	}
 }
 
-func (w *WHIPSession) readRTCP(receiver *pion.RTPReceiver, stats *rtpinbounder.Stats) error {
+func (w *WHIPSession) readRTCP(remote *pion.TrackRemote, receiver *pion.RTPReceiver, stats *rtpinbounder.Stats) error {
+	readRTCPFunc := receiver.ReadRTCP
+	if remote.RID() != "" {
+		readRTCPFunc = func() ([]rtcp.Packet, interceptor.Attributes, error) {
+			return receiver.ReadSimulcastRTCP(remote.RID())
+		}
+	}
+
 	for {
-		rtcpPackets, _, err := receiver.ReadRTCP()
+		rtcpPackets, _, err := readRTCPFunc()
 		if err != nil {
 			return err
 		}

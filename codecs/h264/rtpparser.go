@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
 	"mediaserver-go/utils/log"
+	"mediaserver-go/utils/units"
 )
 
 type RTPParser struct {
@@ -26,8 +27,9 @@ func NewH264Parser(cb func(codec codecs.Codec)) *RTPParser {
 	}
 }
 
-func (h *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
+func (h *RTPParser) Parse(rtpPacket *rtp.Packet) ([][]byte, units.FrameInfo) {
 	var payloads [][]byte
+	flag := 0
 	for _, payload := range h.parse(rtpPacket.Payload) {
 		nal := h264.NALUType(payload[0] & 0x1F)
 		switch nal {
@@ -39,14 +41,16 @@ func (h *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 			// drop
 		case h264.NALUTypePPS:
 			h.ppsTemp = payload
-			// drop
+		case h264.NALUTypeIDR:
+			flag = 1
+			payloads = append(payloads, payload)
 		default:
 			payloads = append(payloads, payload)
 		}
 	}
 
 	if len(h.spsTemp) == 0 || len(h.ppsTemp) == 0 {
-		return nil
+		return nil, units.FrameInfo{}
 	}
 
 	if !bytes.Equal(h.sps, h.spsTemp) || !bytes.Equal(h.pps, h.ppsTemp) {
@@ -60,7 +64,9 @@ func (h *RTPParser) Parse(rtpPacket *rtp.Packet) [][]byte {
 		}
 	}
 
-	return payloads
+	return payloads, units.FrameInfo{
+		Flag: flag,
+	}
 }
 
 /*
@@ -137,19 +143,27 @@ func (h *RTPParser) parse(rtpPayload []byte) [][]byte {
 		if len(rtpPayload) < 2 {
 			return nil
 		}
-		s := rtpPayload[fragmentHeaderIdx] & 0x80
-		e := rtpPayload[fragmentHeaderIdx] & 0x40
+		s := rtpPayload[fragmentHeaderIdx] & 0x80 >> 7
+		e := rtpPayload[fragmentHeaderIdx] & 0x40 >> 6
 		fragmentNALU := h264.NALUType(rtpPayload[fragmentHeaderIdx] & 0x1F)
 		if fragmentNALU == h264.NALUTypeFillerData {
 			return nil
 		}
 		if s != 0 {
 			b := byte(fragmentNALU) | rtpPayload[commonHeaderIdx]&0xe0
-			h.fragments = append([]byte{}, b)
+			h.fragments = append(make([]byte, 0, len(rtpPayload[fragmentHeaderIdx:])), b)
+			h.fragments = append(h.fragments, rtpPayload[fragmentHeaderIdx+1:]...)
+		} else {
+			if len(h.fragments) > 0 {
+				h.fragments = append(h.fragments, rtpPayload[fragmentHeaderIdx+1:]...)
+			}
 		}
-		h.fragments = append(h.fragments, rtpPayload[fragmentHeaderIdx+1:]...)
+
 		if e != 0 {
-			return [][]byte{h.fragments}
+			if len(h.fragments) > 0 {
+				return [][]byte{h.fragments}
+			}
+			return nil
 		}
 		return nil
 	default:

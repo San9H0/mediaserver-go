@@ -36,18 +36,21 @@
 
 <script>
     const audioEncodings = [{maxBitrate: 1024 * 1024}];
-    const singleVideoEncodings = [
-        {maxBitrate: 1024 * 1024 * 1024}
-    ];
+    // const singleVideoEncodings = [
+    //     {maxBitrate: 1024 * 1024 * 1024}
+    // ];
     const maxBitrates = {
-        high: 1024 * 1024,
-        medium: 512 * 1024,
-        low: 256 * 1024
+        high: 1024 * 1024 * 1024,
+        medium: 5124 * 1024 * 1024,
+        low: 128 * 1024 * 1024,
+        // high: 1024 * 1024, // 1500 000
+        // medium: 512 * 1024, // 500 000
+        // low: 128 * 1024 // 100 000
     };
     const simulcastVideoEncodings = [
-        { rid: 'h', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.high },
-        { rid: 'm', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.medium, scaleResolutionDownBy: 2 },
-        { rid: 'l', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.low, scaleResolutionDownBy: 4 }
+        { rid: '2', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.high },
+        { rid: '1', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.medium, scaleResolutionDownBy: 2 },
+        { rid: '0', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.low, scaleResolutionDownBy: 4 }
     ]
 </script>
 

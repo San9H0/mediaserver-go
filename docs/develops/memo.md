@@ -114,3 +114,9 @@ bframes=0
 
 ### domain
 hellosan9h0.duckdns.org
+
+### webrtc
+https://webrtcforthecurious.com/docs/06-media-communication/
+
+### avc svc
+https://datatracker.ietf.org/doc/rfc6190/
