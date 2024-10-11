@@ -56,9 +56,10 @@ func (h *RTPParser) Parse(rtpPacket *rtp.Packet) ([][]byte, units.FrameInfo) {
 	if !bytes.Equal(h.sps, h.spsTemp) || !bytes.Equal(h.pps, h.ppsTemp) {
 		h.sps = bytes.Clone(h.spsTemp)
 		h.pps = bytes.Clone(h.ppsTemp)
-		config := Config{}
+		config := &Config{}
 		if err := config.UnmarshalFromSPSPPS(h.sps, h.pps); err == nil {
-			h.onCodec(NewH264(&config))
+			fmt.Println("[TESTDEBUG] config:", config)
+			h.onCodec(NewH264(config))
 		} else {
 			log.Logger.Error("failed to unmarshal sps pps", zap.Error(err))
 		}
@@ -116,6 +117,7 @@ func (h *RTPParser) parse(rtpPayload []byte) [][]byte {
 	)
 
 	naluType := h264.NALUType(rtpPayload[commonHeaderIdx] & 0x1F)
+	fmt.Println("[TESTDEBUG] nalu:", naluType)
 	switch {
 	case 1 <= naluType && naluType <= 23:
 		return [][]byte{rtpPayload}

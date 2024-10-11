@@ -119,8 +119,8 @@ func (r *RemoteTrackHandler) onVideo(ctx context.Context, track hubs.Track, unit
 			_ = r.packetizer.Packetize(h264Codec.PPS(), 3000)
 		}
 	}
-	rtpPackets := r.packetizer.Packetize(unit.Payload, 3000)
 
+	rtpPackets := r.packetizer.Packetize(unit.Payload, 3000)
 	for _, rtpPacket := range rtpPackets {
 		for _, getExt := range r.getExtensions {
 			id, payload, ok := getExt()
@@ -130,18 +130,13 @@ func (r *RemoteTrackHandler) onVideo(ctx context.Context, track hubs.Track, unit
 			rtpPacket.Header.SetExtension(uint8(id), payload)
 		}
 
-		n, err := rtpPacket.MarshalTo(r.buf)
-		if err != nil {
-			fmt.Println("marshal rtp err:", err)
-			continue
-		}
-
-		if _, err := r.localTrack.Write(r.buf[:n]); err != nil {
-			fmt.Println("[TESTDEBUG] write n:", n, ", err?:", err)
+		if err := r.localTrack.WriteRTP(rtpPacket); err != nil {
+			fmt.Println("[TESTDEBUG] write err?:", err)
 			return err
 		}
+
 		r.stats.sendCount.Add(1)
-		r.stats.sendLength.Add(uint32(n))
+		r.stats.sendLength.Add(uint32(rtpPacket.MarshalSize()))
 		r.stats.lastNTP.Store(uint64(ntp.GetNTPTime(time.Now())))
 		r.stats.lastTS.Store(rtpPacket.Timestamp)
 	}
@@ -181,12 +176,14 @@ func (r *RemoteTrackHandler) HandlerRTCP(ctx context.Context) error {
 			return err
 		}
 		for _, irtcpPacket := range rtcpPackets {
-			switch irtcpPacket.(type) {
+			switch rtcpPacket := irtcpPacket.(type) {
+			case *rtcp.TransportLayerCC:
 			case *rtcp.PictureLossIndication:
 			case *rtcp.TransportLayerNack:
 				r.stats.nackCount.Add(1)
 			case *rtcp.ReceiverReport:
 			case *rtcp.ReceiverEstimatedMaximumBitrate:
+				fmt.Printf("[TESTDEBUG] Rebm packet:%f, %v\n", rtcpPacket.Bitrate, rtcpPacket.SSRCs)
 				// TODO
 			}
 			_ = irtcpPacket

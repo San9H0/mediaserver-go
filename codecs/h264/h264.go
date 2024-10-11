@@ -2,6 +2,7 @@ package h264
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/pion/sdp/v3"
@@ -26,6 +27,9 @@ type H264 struct {
 }
 
 func NewH264(config *Config) codecs.Codec {
+	if b, err := json.MarshalIndent(config, "", "  "); err == nil {
+		fmt.Println("h264 config:", string(b))
+	}
 	return &H264{
 		Base:   Base{},
 		config: config,

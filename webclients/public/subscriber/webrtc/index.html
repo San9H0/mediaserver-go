@@ -110,7 +110,8 @@
         subPC.addEventListener('iceconnectionstatechange', e => {
         });
         subPC.ontrack = async e => {
-            console.log("subPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
+            console.log("subPC ontrack called kind:", e.track.kind, ", e:", e)
+            // console.log("subPC ontrack called kind:", e.track.kind, ", trackid:", e.track.id, ", streams:", e.streams[0].id)
             if (subVideo.srcObject !== e.streams[0]) {
                 subVideo.srcObject = e.streams[0];
                 await subVideo.play()

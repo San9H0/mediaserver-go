@@ -2,6 +2,7 @@ package whep
 
 import (
 	"context"
+	"github.com/pion/interceptor/pkg/cc"
 	pioncodec "github.com/pion/rtp/codecs"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs/av1"
@@ -15,6 +16,7 @@ import (
 
 type ABSHandler struct {
 	stats *Stats
+	bwe   cc.BandwidthEstimator
 
 	maxSpatialLayer     atomic.Int32
 	targetSpatialLayer  atomic.Int32
@@ -22,10 +24,14 @@ type ABSHandler struct {
 
 	maxTemporalLayer    atomic.Int32
 	targetTemporalLayer atomic.Int32
+
+	padding      atomic.Bool
+	paddingCount atomic.Uint32
 }
 
-func NewABSHandler(stats *Stats) *ABSHandler {
+func NewABSHandler(stats *Stats, bwe cc.BandwidthEstimator) *ABSHandler {
 	return &ABSHandler{
+		bwe:   bwe,
 		stats: stats,
 	}
 }

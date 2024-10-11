@@ -7,6 +7,7 @@ go 1.22.5
 //replace github.com/yutopp/go-rtmp => ../go-rtmp
 
 replace github.com/pion/webrtc/v3 => ../webrtc
+//replace github.com/pion/interceptor => ../interceptor
 
 replace github.com/bluenviron/mediacommon => ../mediacommon
 

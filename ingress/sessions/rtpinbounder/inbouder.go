@@ -2,6 +2,7 @@ package rtpinbounder
 
 import (
 	"context"
+	"fmt"
 	"github.com/pion/rtp"
 	"go.uber.org/zap"
 	"mediaserver-go/codecs"
@@ -49,10 +50,17 @@ func (i *Inbounder) Run(ctx context.Context, hubTrack *hubs.HubSource, stats *St
 			return err
 		}
 
+		if hubTrack.MediaType() == types.MediaTypeVideo {
+			fmt.Printf("[TESTDEBUG] buf:%x\n", buf[:40])
+		}
+
 		rtpPacket := &rtp.Packet{}
 		if err := rtpPacket.Unmarshal(buf[:n]); err != nil {
 			log.Logger.Error("rtp failed to unmarshal", zap.Error(err))
 			continue
+		}
+		if hubTrack.MediaType() == types.MediaTypeVideo {
+			fmt.Println("header.extensions", rtpPacket.Header.Extensions)
 		}
 
 		if startTS == 0 {

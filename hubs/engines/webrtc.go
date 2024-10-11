@@ -26,6 +26,8 @@ func GetWHIPRTPHeaderExtensionCapabilities() map[pion.RTPCodecType][]pion.RTPHea
 func GetWHEPRTPHeaderExtensionCapabilities() map[pion.RTPCodecType][]pion.RTPHeaderExtensionCapability {
 	result := make(map[pion.RTPCodecType][]pion.RTPHeaderExtensionCapability)
 	result[pion.RTPCodecTypeVideo] = []pion.RTPHeaderExtensionCapability{
+		{URI: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01"},
+		{URI: "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time"},
 		//{URI: "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay"},
 	}
 	result[pion.RTPCodecTypeAudio] = nil
@@ -34,9 +36,9 @@ func GetWHEPRTPHeaderExtensionCapabilities() map[pion.RTPCodecType][]pion.RTPHea
 
 func getRTPHeaderExtensionCapabilitiesVideo() []pion.RTPHeaderExtensionCapability {
 	return []pion.RTPHeaderExtensionCapability{
-		{URI: "urn:ietf:params:rtp-hdrext:sdes:mid"},
-		{URI: "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id"},
-		{URI: "urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id"},
+		//{URI: "urn:ietf:params:rtp-hdrext:sdes:mid"},
+		//{URI: "urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id"},
+		//{URI: "urn:ietf:params:rtp-hdrext:sdes:repaired-rtp-stream-id"},
 	}
 }
 

@@ -31,8 +31,7 @@
 <input type="text" id="streamKey" placeholder="Enter your StreamKey or Token" style="width: 300px;">
 
 <div class="box">
-    <button id="startVideo">StartVideo</button>
-    <button id="startWebCam">StartWebCam</button>
+    <button id="start">Start</button>
 </div>
 
 <script>
@@ -53,18 +52,6 @@
     //     { rid: '1', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.medium, scaleResolutionDownBy: 2 },
     //     { rid: '0', active: true, scalabilityMode: 'L1T2', maxBitrate: maxBitrates.low, scaleResolutionDownBy: 4 }
     // ]
-
-    const webCapConstraints = {
-        audio: true,
-        video: {
-            width: { ideal: 400 }, // 웹캠별로 지원하는 해상도가 다를 수 있음
-            height: { ideal: 300 },
-            frameRate : {
-                ideal: 30,
-                max: 60
-            },
-        }
-    };
 </script>
 
 <script>
@@ -137,10 +124,11 @@
     const videoCodecSelector = document.getElementById('videoCodec');
     const audioCodecSelector = document.getElementById('audioCodec');
 
-    const startVideoBtn = document.getElementById('startVideo');
-    const startWebCamBtn = document.getElementById('startWebCam');
+    const startBtn = document.getElementById('start');
 
-    async function initWebcam() {
+
+    async function startVideo() {
+        startBtn.disabled = true;
         try {
             console.log("start video");
             const mediaStream = await navigator.mediaDevices.getUserMedia(webCapConstraints);
@@ -153,31 +141,8 @@
             localStream = mediaStream;
             localAudioTrack = mediaStream.getAudioTracks()[0]
             localVideoTrack = mediaStream.getVideoTracks()[0]
-
-            startVideoBtn.disabled = true;
-            startWebCamBtn.disabled = true;
         } catch (err) {
             alert(`3 getUserMedia() error: ${err.name}`);
-        }
-    }
-
-    async function initVideo() {
-        const source = "../../sample.mp4"
-        try {
-            if (pubVideo.src !== new URL(source, document.baseURI).href) {
-                pubVideo.src = source
-            }
-            await pubVideo.play()
-
-            const mediaStream = pubVideo.captureStream();
-            localStream = mediaStream
-            localAudioTrack = mediaStream.getAudioTracks()[0]
-            localVideoTrack = mediaStream.getVideoTracks()[0]
-
-            startVideoBtn.disabled = true;
-            startWebCamBtn.disabled = true;
-        } catch (e) {
-            alert(`3 getUserMedia() error: ${e.name}`);
         }
     }
 
@@ -270,19 +235,13 @@
         }));
     }
 
-    async function startVideo() {
-        await initVideo();
-        await startPub();
-    }
-
-    async function startWebcam() {
-        await initWebcam();
-        await startPub();
+    async function start() {
+        await startVideo();
+        // await startPub();
     }
 
 
-    startVideoBtn.addEventListener('click', startVideo);
-    startWebCamBtn.addEventListener('click', startWebcam);
+    startBtn.addEventListener('click', start);
 
 </script>
 </body>

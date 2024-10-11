@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/pion/interceptor"
+	"github.com/pion/interceptor/pkg/cc"
+	"github.com/pion/interceptor/pkg/gcc"
+	"github.com/pion/interceptor/pkg/twcc"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp"
 	pion "github.com/pion/webrtc/v3"
@@ -12,13 +16,12 @@ import (
 	"mediaserver-go/codecs/factory"
 	"mediaserver-go/codecs/opus"
 	"mediaserver-go/egress/sessions/whep/playoutdelay"
-	"mediaserver-go/thirdparty/ffmpeg/avutil"
-	"strings"
-
 	"mediaserver-go/hubs"
+	"mediaserver-go/thirdparty/ffmpeg/avutil"
 	"mediaserver-go/utils/log"
 	"mediaserver-go/utils/types"
 	"mediaserver-go/utils/units"
+	"strings"
 )
 
 type TrackContext struct {
@@ -67,7 +70,20 @@ func (h *Handler) Answer() string {
 }
 
 func (h *Handler) Init(ctx context.Context, stream *hubs.Stream, offer string) error {
-	api := pion.NewAPI(pion.WithMediaEngine(h.me), pion.WithSettingEngine(h.se))
+	interceptorRegistry := &interceptor.Registry{}
+	f, err := cc.NewInterceptor(func() (cc.BandwidthEstimator, error) {
+		return gcc.NewSendSideBWE(gcc.SendSideBWEMinBitrate(500_000), gcc.SendSideBWEMaxBitrate(3_000_000), gcc.SendSideBWEInitialBitrate(500_000))
+	})
+	if err != nil {
+		return err
+	}
+	bweCh := make(chan cc.BandwidthEstimator, 1)
+	f.OnNewPeerConnection(func(id string, estimator cc.BandwidthEstimator) {
+		bweCh <- estimator
+	})
+	interceptorRegistry.Add(f)
+	interceptorRegistry.Add(&twcc.HeaderExtensionInterceptorFactory{})
+	api := pion.NewAPI(pion.WithMediaEngine(h.me), pion.WithSettingEngine(h.se), pion.WithInterceptorRegistry(interceptorRegistry))
 
 	pc, err := api.NewPeerConnection(pion.Configuration{
 		SDPSemantics: pion.SDPSemanticsUnifiedPlan,
@@ -75,6 +91,7 @@ func (h *Handler) Init(ctx context.Context, stream *hubs.Stream, offer string) e
 	if err != nil {
 		return err
 	}
+	bwe := <-bweCh
 
 	streamID, err := uuid.NewRandom()
 	if err != nil {
@@ -159,6 +176,8 @@ func (h *Handler) Init(ctx context.Context, stream *hubs.Stream, offer string) e
 			case "http://www.webrtc.org/experiments/rtp-hdrext/playout-delay":
 				playoutDelayHandler = playoutdelay.NewHandler(ext.ID, true)
 				getExtensions = append(getExtensions, playoutDelayHandler.GetPayload)
+			case "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time":
+				packetizer.EnableAbsSendTime(ext.ID)
 			}
 		}
 
@@ -174,7 +193,7 @@ func (h *Handler) Init(ctx context.Context, stream *hubs.Stream, offer string) e
 			remoteRTXHandler:       remoteRTXHandler,
 			playoutDelayHandler:    playoutDelayHandler,
 			getExtensions:          getExtensions,
-			adaptiveBitrateHandler: NewABSHandler(stats),
+			adaptiveBitrateHandler: NewABSHandler(stats, bwe),
 			pc:                     pc,
 		})
 		go remoteTrackHandler.Run(ctx)

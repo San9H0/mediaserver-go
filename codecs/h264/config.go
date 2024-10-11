@@ -33,6 +33,11 @@ type Config struct {
 	pixelFmt    int
 }
 
+func (c *Config) String() string {
+	return fmt.Sprintf("H264 width:%d height:%d profile:%d(%x) profileComp:%d(%x) level:%d(%x) pixelFmt:%d",
+		c.width, c.height, c.profileID, c.profileID, c.profileComp, c.profileComp, c.levelID, c.levelID, c.pixelFmt)
+}
+
 func (c *Config) init(sps, pps []byte) error {
 	if len(sps) == 0 || len(pps) == 0 {
 		return errInvalidSize
